@@ -439,7 +439,7 @@ let S = {
   openGoal:null, adding:false, addingGoal:false, addingRepeat:false,
   addingClient:false, selClientId:null, showDone:true,
   draft:{title:"",gid:"",cat:"business",date:today(),start_time:"",time:""},
-  goalDraft:{title:"",cat:"business",deadline:"",progress:0},
+  goalDraft:{title:"",cat:"business",deadline:"",progress:0,target_value:"",current_value:"0",unit:""},
   editingTaskId:null, // 編集中のタスクID
   showPastDue:false, // やり残しセクションの開閉
   newClientId:null,  // 追加直後のクライアントID（URL表示用）
@@ -484,8 +484,13 @@ async function toggleTask(id,done){
   S.tasks=S.tasks.map(t=>t.id===id?{...t,done}:t);render();
 }
 async function addGoal(data){
-  const rows=await sb("POST","goals",{title:data.title,cat:data.cat,deadline:data.deadline,progress:+data.progress});
+  const rows=await sb("POST","goals",{title:data.title,cat:data.cat,deadline:data.deadline,progress:+data.progress,target_value:data.target_value?+data.target_value:null,current_value:data.current_value?+data.current_value:0,unit:data.unit||""});
   if(rows&&rows[0]){S.goals.push(rows[0]);if(!S.draft.gid)S.draft.gid=rows[0].id;}render();
+}
+async function updateGoalCurrentValue(id, current_value){
+  await sb("PATCH","goals",{current_value:+current_value},`?id=eq.${id}`);
+  S.goals=S.goals.map(g=>g.id===id?{...g,current_value:+current_value}:g);
+  render();
 }
 async function deleteGoal(id){
   await sb("DELETE","goals","",`?id=eq.${id}`);
@@ -527,7 +532,10 @@ async function addClient(data){
   render();
 }
 async function deleteClient(id){
+  // タスクを先に削除してから、クライアントを削除
+  await sb("DELETE","tasks","",`?client_id=eq.${id}`);
   await sb("DELETE","clients","",`?id=eq.${id}`);
+  S.tasks=S.tasks.filter(t=>t.client_id!==id);
   S.clients=S.clients.filter(c=>c.id!==id);
   if(S.selClientId===id)S.selClientId=null;
   render();
@@ -735,9 +743,15 @@ function editFormHTML(){
 function userGoals(){
   const cOpts=CATS.map(c=>`<option value="${c.id}">${c.label}</option>`).join("");
   const form=S.addingGoal?`<div style="background:#fff;border-radius:14px;border:1.5px solid var(--y);padding:16px;margin-bottom:4px;display:flex;flex-direction:column;gap:10px">
-    <input class="form-input" id="g-title" placeholder="目標を入力" style="font-size:13px">
+    <input class="form-input" id="g-title" placeholder="目標を入力（例：売上100万達成・宅建合格）" style="font-size:13px">
     <div class="form-row"><select class="form-sel" id="g-cat">${cOpts}</select><input class="form-sel" id="g-deadline" placeholder="期限（例：2025.12）" style="flex:1;font-size:12px"></div>
-    <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--muted);white-space:nowrap">進捗</span><input type="range" id="g-progress" min="0" max="100" value="0" style="flex:1"><span style="font-size:12px;font-weight:700;width:30px;text-align:right" id="g-prog-lbl">0%</span></div>
+    <div class="form-lbl">数値目標（任意）</div>
+    <div class="form-row">
+      <input class="form-sel" id="g-target" placeholder="目標値（例：1000000）" type="number" style="flex:2;font-size:12px">
+      <input class="form-sel" id="g-unit" placeholder="単位（例：円・kg・問）" style="flex:1;font-size:12px">
+    </div>
+    <div class="form-lbl">現在値</div>
+    <input class="form-sel" id="g-current" placeholder="現在の数値（例：300000）" type="number" value="0" style="width:100%;font-size:12px">
     <div class="form-btns"><button class="form-ok" id="g-ok">追加する</button><button class="form-cancel" id="g-cancel">キャンセル</button></div>
   </div>`:`<button class="dashed-btn" id="goal-add-open">+ 目標を追加</button>`;
   const rows=S.goals.map(g=>{
@@ -750,11 +764,31 @@ function userGoals(){
       <div class="chk${t.done?" checked":""}" data-chk="${t.id}">${t.done?checkSVG():""}</div>
       <div style="flex:1;min-width:0"><div class="task-title">${esc(t.title)}</div><div class="task-meta">${getCat(t.cat).label}${fmtTimeRange(t)?"  ·  "+fmtTimeRange(t):""}${t.date!==today()?"  ·  "+fmtShort(t.date):""}</div></div>
     </div>`).join(""):"";
+    // KPI計算
+    const hasKPI = g.target_value && g.target_value > 0;
+    const kpiPct = hasKPI ? Math.min(100, Math.round((g.current_value||0) / g.target_value * 100)) : null;
+    const kpiBar = hasKPI ? `<div style="margin-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;color:var(--muted)">${(g.current_value||0).toLocaleString()}${g.unit} / ${g.target_value.toLocaleString()}${g.unit}</span>
+        <span style="font-size:12px;font-weight:700;color:${kpiPct>=70?"var(--green)":kpiPct>=40?"var(--yd)":"var(--red)"}">${kpiPct}%</span>
+      </div>
+      ${barHTML(kpiPct, kpiPct>=70?"var(--green)":kpiPct>=40?"var(--y)":"var(--red)")}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+      <span style="font-size:11px;color:var(--muted);white-space:nowrap">現在値を更新：</span>
+      <input type="number" class="form-sel kpi-input" data-goal-id="${g.id}" value="${g.current_value||0}" style="width:120px;font-size:12px;padding:4px 8px">
+      <span style="font-size:11px;color:var(--muted)">${g.unit}</span>
+      <button class="m-btn m-btn-y kpi-update-btn" data-goal-id="${g.id}" style="font-size:11px;padding:5px 10px;border-radius:6px">更新</button>
+    </div>` : "";
     return `<div class="goal-row">
       <div class="goal-top" data-goal="${g.id}">
         <div class="goal-ico${isOpen?" open":""}"></div>
-        <div style="flex:1;min-width:0;margin-left:10px"><div style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(g.title)}</div>${barHTML(g.progress)}<div style="font-size:11px;color:var(--muted);margin-top:4px">${g.deadline?g.deadline+" まで":""}</div></div>
-        <div class="goal-pct"${isOpen?` style="color:var(--yd)"`:""}">${g.progress}%</div>
+        <div style="flex:1;min-width:0;margin-left:10px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(g.title)}</div>
+          ${hasKPI ? kpiBar : barHTML(g.progress)}
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">${g.deadline?g.deadline+" まで":""}</div>
+        </div>
+        <div class="goal-pct"${isOpen?` style="color:var(--yd)"`:""}">${hasKPI?kpiPct+"%":g.progress+"%"}</div>
         <button class="del-btn" data-goal-del="${g.id}">×</button>
       </div>
       ${isOpen&&tr?`<div class="goal-tasks">${tr}</div>`:""}
@@ -1242,11 +1276,32 @@ function bind(){
   if(gok)gok.addEventListener("click",async()=>{
     const title=document.getElementById("g-title").value.trim();
     if(!title)return;
-    await addGoal({title,cat:document.getElementById("g-cat").value,deadline:document.getElementById("g-deadline").value||"",progress:document.getElementById("g-progress").value||0});
+    await addGoal({
+      title,
+      cat:document.getElementById("g-cat").value,
+      deadline:document.getElementById("g-deadline").value||"",
+      progress:0,
+      target_value:document.getElementById("g-target")?.value||"",
+      current_value:document.getElementById("g-current")?.value||"0",
+      unit:document.getElementById("g-unit")?.value||"",
+    });
     S.addingGoal=false;
   });
   const gc=document.getElementById("g-cancel");
   if(gc)gc.addEventListener("click",()=>{S.addingGoal=false;render();});
+
+  // KPI現在値更新
+  document.querySelectorAll(".kpi-update-btn").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      const gid=+btn.dataset.goalId;
+      const input=document.querySelector(`.kpi-input[data-goal-id="${gid}"]`);
+      if(input){
+        btn.textContent="更新中...";
+        await updateGoalCurrentValue(gid, input.value);
+        btn.textContent="更新";
+      }
+    });
+  });
   const gp=document.getElementById("g-progress");
   if(gp)gp.addEventListener("input",()=>{document.getElementById("g-prog-lbl").textContent=gp.value+"%";});
 
