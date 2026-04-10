@@ -77,6 +77,25 @@
   .overdue-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
   .rep-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #EEF2FF; color: var(--blue); font-weight: 600; margin-left: 4px; }
   .started-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #FFFBEA; color: var(--yd); font-weight: 600; margin-left: 4px; }
+  /* ── ダッシュボード ── */
+  .dash-wrap { padding: 16px 0 8px; display: flex; flex-direction: column; gap: 12px; }
+  .dash-row { display: flex; gap: 10px; }
+  .dash-card { background: #fff; border-radius: 14px; border: 1px solid var(--line); padding: 14px; flex: 1; }
+  .dash-card-title { font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .dash-num { font-size: 28px; font-weight: 900; color: var(--ink); line-height: 1; letter-spacing: -1px; }
+  .dash-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .week-bars { display: flex; gap: 4px; align-items: flex-end; height: 48px; margin-bottom: 4px; }
+  .week-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .week-bar-fill { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height .4s; }
+  .week-bar-lbl { font-size: 9px; color: var(--muted); font-weight: 600; }
+  /* ドーナツグラフ */
+  .donut-wrap { display: flex; align-items: center; gap: 12px; }
+  .donut-svg { flex-shrink: 0; }
+  .donut-info { flex: 1; min-width: 0; }
+  .donut-pct { font-size: 22px; font-weight: 900; letter-spacing: -1px; }
+  .donut-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .kpi-inline-input { width: 100%; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 13px; margin-top: 8px; font-family: inherit; }
+
   .task-edit-btn { font-size: 12px; color: var(--muted); padding: 4px 6px; border-radius: 6px; flex-shrink: 0; transition: all .15s; }
   .task-edit-btn:hover { background: #F5F5F5; color: var(--ink); }
   .task-del-btn { font-size: 12px; color: #DDD; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; transition: all .15s; }
@@ -215,6 +234,29 @@
   .pastdue-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #FECACA; }
   .pastdue-row:last-child { border-bottom: none; }
   .pastdue-date { font-size: 10px; font-weight: 700; color: var(--red); white-space: nowrap; background: #FEE2E2; padding: 2px 7px; border-radius: 99px; flex-shrink: 0; }
+
+  /* ── ユーザーダッシュボード ── */
+  .dash-section { margin: 14px 0 8px; }
+  .dash-title { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .dash-week-chart { display: flex; gap: 6px; align-items: flex-end; height: 80px; margin-bottom: 4px; }
+  .dash-week-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .dash-week-bar { width: 100%; border-radius: 4px 4px 0 0; transition: height .5s; min-height: 3px; }
+  .dash-week-day { font-size: 9px; color: var(--muted); font-weight: 600; }
+  .dash-week-pct { font-size: 9px; color: var(--muted); }
+  .dash-goal-list { display: flex; flex-direction: column; gap: 10px; }
+  .dash-goal-item { background: #fff; border-radius: 12px; border: 1px solid var(--line); padding: 12px 14px; }
+  .dash-goal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .dash-goal-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .dash-goal-pct { font-size: 14px; font-weight: 800; }
+  /* ドーナツグラフ */
+  .donut-wrap { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
+  .donut-svg { flex-shrink: 0; }
+  .donut-info { flex: 1; }
+  .donut-num { font-size: 22px; font-weight: 900; color: var(--ink); letter-spacing: -1px; line-height: 1; }
+  .donut-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .donut-input-wrap { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+  .donut-input { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); font-size: 12px; width: 110px; }
+  .donut-update-btn { padding: 5px 10px; border-radius: 8px; background: var(--y); border: none; font-size: 11px; font-weight: 700; cursor: pointer; }
 
   /* クライアント追加フォーム */
   .client-form { background: #fff; border-radius: 14px; border: 1.5px solid var(--y); padding: 16px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; }
@@ -424,6 +466,85 @@ function calcClientAlert(clientTasks) {
 }
 
 // 週間達成率データ（グラフ用）
+// ── ユーザーダッシュボード描画 ──────────────────────────
+function renderUserDashboard(allTasks) {
+  const clientTasks = urlClientId !== null
+    ? S.tasks.filter(t => t.client_id === urlClientId)
+    : S.tasks;
+
+  // 週次グラフ
+  const rates = weeklyRates(clientTasks);
+  const weekChart = `<div class="dash-week-chart">
+    ${rates.map(r => {
+      const h = r.pct === null ? 0 : r.pct * 0.72;
+      const col = r.pct === null ? "#F0F0F0" : r.pct >= 70 ? "var(--green)" : r.pct >= 40 ? "var(--y)" : "var(--red)";
+      const d = localDate(r.date);
+      const isToday = r.date === today();
+      return `<div class="dash-week-bar-wrap">
+        <div class="dash-week-pct">${r.pct !== null ? r.pct + "%" : ""}</div>
+        <div class="dash-week-bar" style="height:${h}px;background:${col};${isToday ? "outline:2px solid var(--yd)" : ""}"></div>
+        <div class="dash-week-day" style="${isToday ? "color:var(--yd);font-weight:800" : ""}">${WD[d.getDay()]}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+
+  // 目標別達成率
+  const goalItems = S.goals.map(g => {
+    const goalTasks = allTasks.filter(t => t.goal_id === g.id);
+    const done = goalTasks.filter(t => t.done).length;
+    const total = goalTasks.length;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    const col = pct >= 70 ? "var(--green)" : pct >= 40 ? "var(--y)" : pct > 0 ? "var(--red)" : "#EEE";
+
+    // ドーナツグラフ（数値目標がある場合）
+    const hasKPI = g.target_value && g.target_value > 0;
+    const kpiPct = hasKPI ? Math.min(100, Math.round((g.current_value || 0) / g.target_value * 100)) : null;
+
+    const donutHTML = hasKPI ? (() => {
+      const r = 28, circ = 2 * Math.PI * r;
+      const kpiCol = kpiPct >= 70 ? "#10B981" : kpiPct >= 40 ? "#FFBD00" : "#E53935";
+      const dash = circ * kpiPct / 100;
+      return `<div class="donut-wrap">
+        <svg class="donut-svg" width="72" height="72" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="${r}" fill="none" stroke="#F0F0F0" stroke-width="8"/>
+          <circle cx="36" cy="36" r="${r}" fill="none" stroke="${kpiCol}" stroke-width="8"
+            stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ * 0.25}"
+            stroke-linecap="round" transform="rotate(-90 36 36)" style="transition:stroke-dasharray .6s"/>
+          <text x="36" y="40" text-anchor="middle" font-size="13" font-weight="800" fill="${kpiCol}">${kpiPct}%</text>
+        </svg>
+        <div class="donut-info">
+          <div class="donut-num">${(g.current_value || 0).toLocaleString()}<span style="font-size:12px;font-weight:400;color:var(--muted)">${g.unit}</span></div>
+          <div class="donut-label">目標：${g.target_value.toLocaleString()}${g.unit}</div>
+          <div class="donut-input-wrap">
+            <input type="number" class="donut-input" id="donut-input-${g.id}" value="${g.current_value || 0}" placeholder="現在値">
+            <span style="font-size:11px;color:var(--muted)">${g.unit}</span>
+            <button class="donut-update-btn" data-goal-id="${g.id}">更新</button>
+          </div>
+        </div>
+      </div>`;
+    })() : "";
+
+    return `<div class="dash-goal-item">
+      <div class="dash-goal-header">
+        <div class="dash-goal-name">${esc(g.title)}</div>
+        <div class="dash-goal-pct" style="color:${col}">${pct}%</div>
+      </div>
+      ${barHTML(pct, col)}
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">${done}/${total}件完了${g.deadline ? "  ·  " + g.deadline + "まで" : ""}</div>
+      ${donutHTML}
+    </div>`;
+  }).join("");
+
+  return `<div class="dash-section">
+    <div class="dash-title">今週の達成率</div>
+    ${weekChart}
+  </div>
+  ${S.goals.length > 0 ? `<div class="dash-section">
+    <div class="dash-title">目標別の進捗</div>
+    <div class="dash-goal-list">${goalItems}</div>
+  </div>` : ""}`;
+}
+
 function weeklyRates(clientTasks) {
   return last7Days().map(d => {
     const dayT = clientTasks.filter(t => t.date === d);
@@ -625,7 +746,7 @@ function renderUser(){
   const done=filtered.filter(t=>t.done).length;
   const total=filtered.length;
   const pct=total?Math.round(done/total*100):0;
-  const content=S.tab==="today"?userToday(filtered):S.tab==="calendar"?calView(all,false):S.tab==="goals"?userGoals():userRepeats();
+  const content=S.tab==="today"?userToday(filtered,all):S.tab==="calendar"?calView(all,false):S.tab==="goals"?userGoals():userRepeats();
   // アバターにクライアント名を反映
   const side=pcSideNav(S.tab);
   const isPc=window.innerWidth>=768;
@@ -656,6 +777,87 @@ function renderUser(){
   `+wrapEnd;
 }
 
+// ── ダッシュボード ──────────────────────────────────────
+function renderDashCards(allTasks) {
+  const WD2 = ["日","月","火","水","木","金","土"];
+  
+  // 今週7日の達成率
+  const weekDays = last7Days();
+  const weekRates = weekDays.map(d => {
+    const dayT = allTasks.filter(t => t.date === d && !t.isRepeat);
+    if (!dayT.length) return { date: d, pct: null };
+    const done = dayT.filter(t => t.done).length;
+    return { date: d, pct: Math.round(done / dayT.length * 100) };
+  });
+  
+  // 今週全体の達成率
+  const validDays = weekRates.filter(r => r.pct !== null);
+  const weekAvg = validDays.length ? Math.round(validDays.reduce((a, b) => a + b.pct, 0) / validDays.length) : 0;
+  
+  // 今日の達成率
+  const todayT = allTasks.filter(t => t.date === today() && !t.isRepeat);
+  const todayDone = todayT.filter(t => t.done).length;
+  const todayPct = todayT.length ? Math.round(todayDone / todayT.length * 100) : 0;
+
+  // 週次棒グラフ
+  const bars = weekRates.map(r => {
+    const h = r.pct === null ? 0 : Math.round(r.pct * 0.44);
+    const col = r.pct === null ? '#F0F0F0' : r.pct >= 70 ? 'var(--green)' : r.pct >= 40 ? 'var(--y)' : 'var(--red)';
+    const dt = localDate(r.date);
+    const isToday = r.date === today();
+    return `<div class="week-bar-col">
+      <div class="week-bar-fill" style="height:${h}px;background:${col};${isToday?'outline:2px solid var(--yd);outline-offset:1px':''}"></div>
+      <div class="week-bar-lbl" style="${isToday?'color:var(--yd);font-weight:800':''}'">${WD2[dt.getDay()]}</div>
+    </div>`;
+  }).join('');
+
+  // KPI目標（数値目標があるgoalを表示）
+  const kpiGoals = S.goals.filter(g => g.target_value && g.target_value > 0);
+  const kpiCards = kpiGoals.map(g => {
+    const pct = Math.min(100, Math.round((g.current_value || 0) / g.target_value * 100));
+    const r = 28; const circ = 2 * Math.PI * r;
+    const dash = circ * pct / 100;
+    const col = pct >= 70 ? 'var(--green)' : pct >= 40 ? '#FFBD00' : 'var(--red)';
+    return `<div class="dash-card">
+      <div class="dash-card-title">${esc(g.title)}</div>
+      <div class="donut-wrap">
+        <svg class="donut-svg" width="72" height="72" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="${r}" fill="none" stroke="#F0F0EE" stroke-width="8"/>
+          <circle cx="36" cy="36" r="${r}" fill="none" stroke="${col}" stroke-width="8"
+            stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ * 0.25}"
+            stroke-linecap="round" transform="rotate(-90 36 36)"/>
+          <text x="36" y="40" text-anchor="middle" font-size="14" font-weight="900" fill="${col}">${pct}%</text>
+        </svg>
+        <div class="donut-info">
+          <div class="donut-pct" style="color:${col}">${(g.current_value||0).toLocaleString()}<span style="font-size:13px;font-weight:500;color:var(--muted)">${g.unit}</span></div>
+          <div class="donut-label">目標：${g.target_value.toLocaleString()}${g.unit}</div>
+          <input type="number" class="kpi-inline-input" data-goal-id="${g.id}" value="${g.current_value||0}" placeholder="現在値を入力">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="dash-wrap">
+    <div class="dash-row">
+      <div class="dash-card">
+        <div class="dash-card-title">今日の達成率</div>
+        <div class="dash-num" style="color:${todayPct>=70?'var(--green)':todayPct>=40?'var(--yd)':'var(--red)'}">${todayPct}%</div>
+        <div class="dash-sub">${todayDone} / ${todayT.length} 完了</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-card-title">今週の平均</div>
+        <div class="dash-num" style="color:${weekAvg>=70?'var(--green)':weekAvg>=40?'var(--yd)':'var(--red)'}">${weekAvg}%</div>
+        <div class="dash-sub">${validDays.length}日分のデータ</div>
+      </div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">週次達成率</div>
+      <div class="week-bars">${bars}</div>
+    </div>
+    ${kpiCards ? `<div style="display:flex;flex-direction:column;gap:10px">${kpiCards}</div>` : ''}
+  </div>`;
+}
+
 function renderRowUser(t){
   const g=getGoal(t.goal_id),od=isOverdue(t),st=isStarted(t);
   const timeStr=fmtTimeRange(t);
@@ -674,7 +876,7 @@ function renderRowUser(t){
   </div>`;
 }
 
-function userToday(filtered){
+function userToday(filtered, allTasks=[]){
   const pills=[`<button class="pill${S.catFilter==="all"?" active":""}" data-cat="all">すべて</button>`,
     ...CATS.map(c=>`<button class="pill${S.catFilter===c.id?" active":""}" data-cat="${c.id}">${c.label}</button>`)].join("");
   const undone=filtered.filter(t=>!t.done),done=filtered.filter(t=>t.done);
@@ -714,7 +916,8 @@ function userToday(filtered){
       </div>` : ""}
     </div>`;
 
-  return `<div class="filters">${pills}</div>${rows}${pastDueSection}`;
+  const dashboard = renderUserDashboard(allTasks);
+  return `${dashboard}<div class="filters">${pills}</div>${rows}${pastDueSection}`;
 }
 function editFormHTML(){
   if(S.editingTaskId===null)return "";
@@ -1332,6 +1535,21 @@ function bind(){
     });
   });
 
+  // ドーナツグラフ現在値更新
+  document.querySelectorAll(".donut-update-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const gid = +btn.dataset.goalId;
+      const input = document.getElementById(`donut-input-${gid}`);
+      if (input) {
+        btn.textContent = "更新中...";
+        btn.disabled = true;
+        await updateGoalCurrentValue(gid, input.value);
+        btn.textContent = "更新";
+        btn.disabled = false;
+      }
+    });
+  });
+
   // 時間切れボタン：押すたびにランダムテンプレ
   document.querySelectorAll(".overdue-send-btn").forEach(el=>{
     el.addEventListener("click",async()=>{
@@ -1352,6 +1570,14 @@ function bind(){
   // やり残しトグル
   const pt=document.getElementById("pastdue-toggle");
   if(pt)pt.addEventListener("click",()=>{S.showPastDue=!S.showPastDue;render();});
+
+  // KPIインライン入力（今日タブのダッシュカード）
+  document.querySelectorAll(".kpi-inline-input").forEach(input => {
+    input.addEventListener("change", async () => {
+      const gid = +input.dataset.goalId;
+      await updateGoalCurrentValue(gid, input.value);
+    });
+  });
 
   // タスク編集ボタン
   document.querySelectorAll("[data-edit]").forEach(el=>el.addEventListener("click",e=>{
