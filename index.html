@@ -454,6 +454,7 @@ let S = {
   tab:"today", catFilter:"all", calSel:today(),
   openGoal:null, adding:false, addingGoal:false, addingRepeat:false,
   addingClient:false, selClientId:null, showDone:true,
+  showUserDone:false,
   draft:{title:"",gid:"",cat:"business",date:today(),start_time:"",time:""},
   goalDraft:{title:"",cat:"business",deadline:"",progress:0},
   editingTaskId:null, // 編集中のタスクID
@@ -688,6 +689,8 @@ function renderRowUser(t){
 }
 
 function userToday(filtered, allTasks=[]){
+  const doneCount = filtered.filter(t=>t.done).length;
+  const toggleDoneBtn = doneCount > 0 ? `<button class="tog-btn" id="user-toggle-done" style="margin-left:auto">${S.showUserDone ? `完了済みを隠す (${doneCount}件)` : `完了済みを表示 (${doneCount}件)`}</button>` : "";
   const pills=[`<button class="pill${S.catFilter==="all"?" active":""}" data-cat="all">すべて</button>`,
     ...CATS.map(c=>`<button class="pill${S.catFilter===c.id?" active":""}" data-cat="${c.id}">${c.label}</button>`)].join("");
   const undone=filtered.filter(t=>!t.done),done=filtered.filter(t=>t.done);
@@ -728,26 +731,16 @@ function userToday(filtered, allTasks=[]){
     </div>`;
 
   // 目標グループ表示
+  const visibleFiltered = S.showUserDone ? filtered : filtered.filter(t => !t.done);
   const goalGroups = (() => {
     // 目標に紐づくタスク
     const grouped = S.goals.map(g => {
-      const gTasks = filtered.filter(t => t.goal_id === g.id);
+      const gTasks = visibleFiltered.filter(t => t.goal_id === g.id);
       if (!gTasks.length) return "";
       const done = gTasks.filter(t=>t.done).length;
       const pct = Math.round(done/gTasks.length*100);
       const col = pct>=70?"var(--green)":pct>=40?"var(--y)":"var(--red)";
-      const taskRows = gTasks.map(t => {
-        const isDone = t.done;
-        const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
-        const catInfo = CATS.find(c=>c.id===t.cat);
-        return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
-          <div class="chk${isDone?" checked":""}" data-chk="${t.id}">${isDone?checkSVG():""}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
-          </div>
-          <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${catInfo?.color||"#eee"};color:#fff;font-weight:700">${catInfo?.label||""}</span>
-        </div>`;
-      }).join("");
+      const taskRows = gTasks.map(t => renderRowUser(t)).join("");
       return `<div style="margin-bottom:16px">
         <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid ${col};margin-bottom:8px">
           <span style="font-size:13px;font-weight:700;color:var(--ink);flex:1">${esc(g.title)}</span>
@@ -759,29 +752,18 @@ function userToday(filtered, allTasks=[]){
     }).filter(Boolean).join("");
 
     // 目標なしのタスク
-    const noGoalTasks = filtered.filter(t => !t.goal_id);
+    const noGoalTasks = visibleFiltered.filter(t => !t.goal_id);
     const noGoalRows = noGoalTasks.length ? `<div style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid #EEE;margin-bottom:8px">
         <span style="font-size:13px;font-weight:700;color:var(--muted);flex:1">目標なし</span>
       </div>
-      ${noGoalTasks.map(t => {
-        const isDone = t.done;
-        const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
-        const catInfo = CATS.find(c=>c.id===t.cat);
-        return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
-          <div class="chk${isDone?" checked":""}" data-chk="${t.id}">${isDone?checkSVG():""}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
-          </div>
-          <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${catInfo?.color||"#eee"};color:#fff;font-weight:700">${catInfo?.label||""}</span>
-        </div>`;
-      }).join("")}
+      ${noGoalTasks.map(t => renderRowUser(t)).join("")}
     </div>` : "";
 
     return grouped + noGoalRows;
   })();
 
-  return `<div class="filters">${pills}</div>${goalGroups}${pastDueSection}`;
+  return `<div class="filters" style="display:flex;align-items:center">${pills}${toggleDoneBtn}</div>${goalGroups}${pastDueSection}`;
 }
 function editFormHTML(){
   if(S.editingTaskId===null)return "";
@@ -1357,6 +1339,10 @@ function bind(){
       }
     });
   });
+
+  // 完了タスク表示トグル（ユーザー）
+  const utd = document.getElementById("user-toggle-done");
+  if(utd) utd.addEventListener("click", () => { S.showUserDone = !S.showUserDone; render(); });
 
   // 時間切れボタン：押すたびにランダムテンプレ
   document.querySelectorAll(".overdue-send-btn").forEach(el=>{
