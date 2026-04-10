@@ -931,7 +931,7 @@ function userToday(filtered, allTasks=[]){
         const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
         const catInfo = CATS.find(c=>c.id===t.cat);
         return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
-          <button class="chk${isDone?" checked":""}" data-check="${t.id}"></button>
+          <div class="chk${isDone?" checked":""}" data-chk="${t.id}">${isDone?checkSVG():""}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
           </div>
@@ -959,7 +959,7 @@ function userToday(filtered, allTasks=[]){
         const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
         const catInfo = CATS.find(c=>c.id===t.cat);
         return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
-          <button class="chk${isDone?" checked":""}" data-check="${t.id}"></button>
+          <div class="chk${isDone?" checked":""}" data-chk="${t.id}">${isDone?checkSVG():""}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
           </div>
