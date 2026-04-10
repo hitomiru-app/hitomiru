@@ -887,10 +887,10 @@ function userToday(filtered, allTasks=[]){
 
   // やり残しセクション（今日とは完全に分離）
   // urlClientIdがある場合は必ずそのclient_idのタスクだけ表示
-  const allTasks = urlClientId!==null
+  const innerTasks2 = urlClientId!==null
     ? S.tasks.filter(t=>t.client_id===urlClientId)
     : S.tasks.filter(t=>t.client_id===null); // client未指定の場合はnullのみ
-  const pastDueTasks = allTasks.filter(t=>isPastDue(t));
+  const pastDueTasks = innerTasks2.filter(t=>isPastDue(t));
   const pastDueSection = pastDueTasks.length===0 ? "" : `
     <div class="pastdue-section" id="pastdue-wrap">
       <div class="pastdue-header" id="pastdue-toggle">
