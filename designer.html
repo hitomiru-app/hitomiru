@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 40px;
+    color: #1A1A1A;
+    line-height: 1.8;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    border-bottom: 3px solid #FFBD00;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 14px;
+    font-weight: 700;
+    background: #FFBD00;
+    padding: 6px 14px;
+    border-radius: 4px;
+    margin: 28px 0 14px;
+    display: inline-block;
+  }
+  .field {
+    margin-bottom: 18px;
+  }
+  .field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    display: block;
+    margin-bottom: 4px;
+  }
+  .field .hint {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 4px;
+  }
+  .input-line {
+    border: none;
+    border-bottom: 1px solid #CCC;
+    width: 100%;
+    height: 28px;
+    margin-bottom: 6px;
+    background: transparent;
+  }
+  .input-box {
+    border: 1px solid #CCC;
+    width: 100%;
+    min-height: 72px;
+    border-radius: 4px;
+    background: #FAFAFA;
+  }
+  .input-box-lg {
+    border: 1px solid #CCC;
+    width: 100%;
+    min-height: 120px;
+    border-radius: 4px;
+    background: #FAFAFA;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+  .checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #FFBD00;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .info-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+  .tip {
+    background: #FFF8E0;
+    border-left: 3px solid #FFBD00;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #555;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 10px;
+  }
+  .section-divider {
+    height: 1px;
+    background: #EEE;
+    margin: 32px 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>ヒトミル｜初回面談シート</h1>
+<div class="subtitle">面談日：＿＿＿＿年＿＿月＿＿日　　担当コーチ：＿＿＿＿＿＿＿＿</div>
+
+<!-- 基本情報 -->
+<h2>① 基本情報</h2>
+<div class="info-row">
+  <div class="field">
+    <label>お名前</label>
+    <div class="input-line"></div>
+  </div>
+  <div class="field">
+    <label>年齢</label>
+    <div class="input-line"></div>
+  </div>
+  <div class="field">
+    <label>職業</label>
+    <div class="input-line"></div>
+  </div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- 目標・やりたいこと -->
+<h2>② 目標・やりたいこと</h2>
+
+<div class="tip">3ヶ月後にどうなっていたいか、数字で答えてもらうのがポイントです。</div>
+
+<div class="field">
+  <label>今一番達成したい目標は何ですか？</label>
+  <div class="input-box"></div>
+</div>
+
+<div class="two-col">
+  <div class="field">
+    <label>期限はいつですか？</label>
+    <div class="input-line"></div>
+  </div>
+  <div class="field">
+    <label>数字で表すと？（例：売上100万・体重-5kg）</label>
+    <div class="input-line"></div>
+  </div>
+</div>
+
+<div class="field">
+  <label>目標達成のためにやるべきことを思いつく限り書いてください</label>
+  <div class="hint">後でタスクに落とし込みます。量が多くてもOKです。</div>
+  <div class="input-box-lg"></div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- 現状・課題 -->
+<h2>③ 現状・課題</h2>
+
+<div class="tip">「続かなかった理由」を自分の口で言わせることが大切です。ここが刺さるポイントです。</div>
+
+<div class="field">
+  <label>今一番後回しにしていることは何ですか？</label>
+  <div class="input-box"></div>
+</div>
+
+<div class="field">
+  <label>タスク管理で今まで試したことはありますか？（アプリ・手帳など）</label>
+  <div class="input-box"></div>
+</div>
+
+<div class="field">
+  <label>続かなかった理由は何だと思いますか？</label>
+  <div class="hint">「一人でやろうとしていた」という言葉が出たら刺さっています。</div>
+  <div class="input-box"></div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- 生活リズム -->
+<h2>④ 生活リズム</h2>
+
+<div class="two-col">
+  <div class="field">
+    <label>毎日何時頃が一番動けそうですか？</label>
+    <div class="input-line"></div>
+  </div>
+  <div class="field">
+    <label>朝・昼・夜で一番活動しやすい時間帯は？</label>
+    <div class="input-line"></div>
+  </div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- タスク設計 -->
+<h2>⑤ タスク設計（目標から逆算）</h2>
+
+<div class="tip">目標 → 月次 → 週次 → 毎日の順番で逆算します。</div>
+
+<div class="field">
+  <label>月次でやるべきこと</label>
+  <div class="input-box"></div>
+</div>
+
+<div class="field">
+  <label>週次でやるべきこと</label>
+  <div class="input-box"></div>
+</div>
+
+<div class="field">
+  <label>毎日やること（ヒトミルに登録するタスク）</label>
+  <div class="hint">具体的な行動に落とし込んでください。「架電10件」「英単語20個」など。</div>
+  <div class="input-box-lg"></div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- 面談後チェックリスト -->
+<h2>⑥ 面談後チェックリスト</h2>
+
+<div class="checklist">
+  <div class="check-item"><div class="checkbox"></div>目標をヒトミルに登録した</div>
+  <div class="check-item"><div class="checkbox"></div>毎日のタスクをヒトミルに登録した</div>
+  <div class="check-item"><div class="checkbox"></div>固定タスクを設定した</div>
+  <div class="check-item"><div class="checkbox"></div>クライアント専用URLを渡した</div>
+  <div class="check-item"><div class="checkbox"></div>ヒトミルの使い方を説明した</div>
+  <div class="check-item"><div class="checkbox"></div>LINE友達追加を確認した</div>
+  <div class="check-item"><div class="checkbox"></div>PayPayのQRコードを共有した</div>
+</div>
+
+<div class="section-divider"></div>
+
+<!-- コーチメモ -->
+<h2>⑦ コーチメモ</h2>
+<div class="tip">クライアントの特性・気をつけること・声かけのポイントなどを記録しておきましょう。</div>
+<div class="input-box-lg"></div>
+
+</body>
+</html>
