@@ -91,8 +91,8 @@
 
   
 
-  .task-edit-btn { font-size: 12px; color: var(--muted); padding: 4px 6px; border-radius: 6px; flex-shrink: 0; transition: all .15s; }
-  .task-edit-btn:hover { background: #F5F5F5; color: var(--ink); }
+  .task-edit-btn { font-size: 13px; color: var(--muted); padding: 6px 8px; border-radius: 6px; flex-shrink: 0; transition: all .15s; border: 1px solid var(--line); background: var(--cream); }
+  .task-edit-btn:hover { background: var(--y); color: var(--ink); border-color: var(--y); }
   .task-del-btn { font-size: 12px; color: #DDD; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; transition: all .15s; }
   .task-del-btn:hover { background: #FEF2F2; color: var(--red); }
 
@@ -675,7 +675,7 @@ function renderRowUser(t){
   const timeStr=fmtTimeRange(t);
   const meta=[g?g.title:"",timeStr].filter(Boolean).join("  ·  ");
   const editBtns=!t.isRepeat?`
-    <button class="task-edit-btn" data-edit="${t.id}">✎</button>
+    <button class="task-edit-btn" data-edit="${t.id}">編集</button>
     <button class="task-del-btn" data-del="${t.id}">×</button>`:"";
   return `<div class="task-row${t.done?" done":""}">
     <div class="chk${t.done?" checked":""}" data-chk="${t.id}">${t.done?checkSVG():""}</div>
