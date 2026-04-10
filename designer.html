@@ -2,252 +2,578 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ヒトミル｜タスク設計AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-  body {
-    font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
-    max-width: 800px;
-    margin: 40px auto;
-    padding: 40px;
-    color: #1A1A1A;
-    line-height: 1.8;
-  }
-  h1 {
-    font-size: 22px;
-    font-weight: 700;
-    border-bottom: 3px solid #FFBD00;
-    padding-bottom: 10px;
-    margin-bottom: 6px;
-  }
-  .subtitle {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 32px;
-  }
-  h2 {
-    font-size: 14px;
-    font-weight: 700;
-    background: #FFBD00;
-    padding: 6px 14px;
-    border-radius: 4px;
-    margin: 28px 0 14px;
-    display: inline-block;
-  }
-  .field {
-    margin-bottom: 18px;
-  }
-  .field label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-    display: block;
-    margin-bottom: 4px;
-  }
-  .field .hint {
-    font-size: 11px;
-    color: #999;
-    margin-bottom: 4px;
-  }
-  .input-line {
-    border: none;
-    border-bottom: 1px solid #CCC;
-    width: 100%;
-    height: 28px;
-    margin-bottom: 6px;
-    background: transparent;
-  }
-  .input-box {
-    border: 1px solid #CCC;
-    width: 100%;
-    min-height: 72px;
-    border-radius: 4px;
-    background: #FAFAFA;
-  }
-  .input-box-lg {
-    border: 1px solid #CCC;
-    width: 100%;
-    min-height: 120px;
-    border-radius: 4px;
-    background: #FAFAFA;
-  }
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  .checklist {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 8px;
-  }
-  .check-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 13px;
-  }
-  .checkbox {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #FFBD00;
-    border-radius: 3px;
-    flex-shrink: 0;
-  }
-  .info-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 16px;
-  }
-  .tip {
-    background: #FFF8E0;
-    border-left: 3px solid #FFBD00;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: #555;
-    border-radius: 0 4px 4px 0;
-    margin-bottom: 10px;
-  }
-  .section-divider {
-    height: 1px;
-    background: #EEE;
-    margin: 32px 0;
-  }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --y: #FFBD00;
+  --yd: #B8890A;
+  --ink: #1A1A1A;
+  --cream: #F5F0E8;
+  --white: #FFFFFF;
+  --muted: rgba(26,26,26,0.45);
+  --line: rgba(26,26,26,0.12);
+  --green: #10B981;
+  --user-bubble: #1A1A1A;
+  --ai-bubble: #FFFFFF;
+}
+html, body { height: 100%; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── ヘッダー ── */
+header {
+  background: var(--ink);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.header-logo {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--white);
+  letter-spacing: -0.5px;
+}
+.header-logo span { color: var(--y); }
+.header-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.06em;
+}
+.reset-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.6);
+  font-size: 11px;
+  font-family: 'Noto Sans JP', sans-serif;
+  padding: 6px 14px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.reset-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+/* ── チャットエリア ── */
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.chat-area::-webkit-scrollbar { width: 4px; }
+.chat-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 2px; }
+
+/* メッセージ */
+.msg {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  max-width: 600px;
+  animation: fadeUp .4s ease;
+}
+.msg.user { flex-direction: row-reverse; margin-left: auto; }
+.msg-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.msg.ai .msg-avatar { background: var(--y); color: var(--ink); }
+.msg.user .msg-avatar { background: var(--ink); color: var(--white); font-size: 10px; }
+.msg-bubble {
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: calc(100% - 44px);
+}
+.msg.ai .msg-bubble {
+  background: var(--white);
+  border-radius: 4px 18px 18px 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  color: var(--ink);
+}
+.msg.user .msg-bubble {
+  background: var(--ink);
+  border-radius: 18px 4px 18px 18px;
+  color: var(--white);
+}
+
+/* タイピングインジケーター */
+.typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: bounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: .2s; }
+.typing-dot:nth-child(3) { animation-delay: .4s; }
+
+/* 結果カード */
+.result-card {
+  background: var(--white);
+  border-radius: 16px;
+  border: 2px solid var(--y);
+  padding: 20px;
+  margin-top: 4px;
+  box-shadow: 0 4px 20px rgba(255,189,0,.15);
+}
+.result-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--yd);
+  margin-bottom: 14px;
+}
+.task-group {
+  margin-bottom: 16px;
+}
+.task-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0,0,0,.04);
+  font-size: 13px;
+}
+.task-item:last-child { border-bottom: none; }
+.task-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--y);
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.copy-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--ink);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Noto Sans JP', sans-serif;
+  cursor: pointer;
+  transition: opacity .2s;
+  letter-spacing: 0.04em;
+}
+.copy-btn:hover { opacity: 0.8; }
+.copy-btn.copied { background: var(--green); }
+
+/* 選択肢ボタン */
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  padding-left: 42px;
+}
+.choice-btn {
+  background: var(--white);
+  border: 1.5px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: 'Noto Sans JP', sans-serif;
+  padding: 8px 16px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all .2s;
+  font-weight: 500;
+}
+.choice-btn:hover {
+  border-color: var(--y);
+  background: #FFF8E0;
+}
+
+/* ── 入力エリア ── */
+.input-area {
+  flex-shrink: 0;
+  background: var(--white);
+  border-top: 1px solid var(--line);
+  padding: 12px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+#user-input {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: 'Noto Sans JP', sans-serif;
+  resize: none;
+  outline: none;
+  min-height: 44px;
+  max-height: 120px;
+  background: var(--cream);
+  color: var(--ink);
+  transition: border-color .2s;
+  line-height: 1.5;
+}
+#user-input:focus { border-color: var(--y); background: var(--white); }
+#user-input::placeholder { color: rgba(26,26,26,0.3); }
+#send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--ink);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity .2s;
+}
+#send-btn:hover { opacity: 0.8; }
+#send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+#send-btn svg { fill: white; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
 </style>
 </head>
 <body>
 
-<h1>ヒトミル｜初回面談シート</h1>
-<div class="subtitle">面談日：＿＿＿＿年＿＿月＿＿日　　担当コーチ：＿＿＿＿＿＿＿＿</div>
-
-<!-- 基本情報 -->
-<h2>① 基本情報</h2>
-<div class="info-row">
-  <div class="field">
-    <label>お名前</label>
-    <div class="input-line"></div>
+<header>
+  <div>
+    <div class="header-logo"><span>ヒトミル</span> タスク設計AI</div>
+    <div class="header-sub">目標を入力するだけで毎日のタスクを設計します</div>
   </div>
-  <div class="field">
-    <label>年齢</label>
-    <div class="input-line"></div>
-  </div>
-  <div class="field">
-    <label>職業</label>
-    <div class="input-line"></div>
-  </div>
+  <button class="reset-btn" id="reset-btn">最初から</button>
+</header>
+
+<div class="chat-area" id="chat-area"></div>
+
+<div class="input-area">
+  <textarea id="user-input" placeholder="メッセージを入力..." rows="1"></textarea>
+  <button id="send-btn">
+    <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 21L23 12 2 3v7l15 2-15 2v7z"/></svg>
+  </button>
 </div>
 
-<div class="section-divider"></div>
+<script>
+const SYSTEM_PROMPT = `あなたはヒトミルのタスク設計AIです。ADHDの方やビジネスパーソンの目標達成を支援するコーチングサービス「ヒトミル」の一部として動きます。
 
-<!-- 目標・やりたいこと -->
-<h2>② 目標・やりたいこと</h2>
+あなたの役割は、ユーザーの目標を聞いて、毎日実行可能な具体的なタスクに落とし込むことです。
 
-<div class="tip">3ヶ月後にどうなっていたいか、数字で答えてもらうのがポイントです。</div>
+【会話の進め方】
+1. まず目標を聞く（すでに入力されている場合はスキップ）
+2. 職種・状況を理解するための質問を2〜3個する（一問一答形式で、一度に複数聞かない）
+3. 十分な情報が集まったら「タスク設計に移ります」と言って、以下のJSON形式でタスクを出力する
 
-<div class="field">
-  <label>今一番達成したい目標は何ですか？</label>
-  <div class="input-box"></div>
-</div>
+【重要なルール】
+- 質問は一度に1つだけ。シンプルに聞く。
+- 5〜7回のやり取りで設計まで完了させる。
+- ADHDの特性を考慮して、タスクは具体的・シンプル・小さく分割する。
+- 「やるべきことはわかっているのに続かない」という課題を念頭に置く。
+- 同じような職種でも、人によって全然違うタスクになることを理解する。
 
-<div class="two-col">
-  <div class="field">
-    <label>期限はいつですか？</label>
-    <div class="input-line"></div>
-  </div>
-  <div class="field">
-    <label>数字で表すと？（例：売上100万・体重-5kg）</label>
-    <div class="input-line"></div>
-  </div>
-</div>
+【JSON出力形式】
+タスク設計が完了したら、必ず以下の形式でJSONを出力してください：
 
-<div class="field">
-  <label>目標達成のためにやるべきことを思いつく限り書いてください</label>
-  <div class="hint">後でタスクに落とし込みます。量が多くてもOKです。</div>
-  <div class="input-box-lg"></div>
-</div>
+\`\`\`json
+{
+  "goal": "目標名",
+  "deadline": "期限",
+  "daily": ["毎日タスク1", "毎日タスク2"],
+  "weekly": ["週次タスク1", "週次タスク2"],
+  "monthly": ["月次タスク1"],
+  "notes": "コーチへのメモ（クライアントの特性・注意点など）"
+}
+\`\`\`
 
-<div class="section-divider"></div>
+JSONの前後に説明文を入れてもOKですが、JSONは必ず\`\`\`jsonと\`\`\`で囲んでください。
 
-<!-- 現状・課題 -->
-<h2>③ 現状・課題</h2>
+【トーン】
+- 親しみやすく、でも無駄のないテンポで。
+- 絵文字は使わない。
+- 「〜ですね」「〜ですか？」のような自然な敬語で。`;
 
-<div class="tip">「続かなかった理由」を自分の口で言わせることが大切です。ここが刺さるポイントです。</div>
+let conversationHistory = [];
+let isLoading = false;
 
-<div class="field">
-  <label>今一番後回しにしていることは何ですか？</label>
-  <div class="input-box"></div>
-</div>
+const chatArea = document.getElementById('chat-area');
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const resetBtn = document.getElementById('reset-btn');
 
-<div class="field">
-  <label>タスク管理で今まで試したことはありますか？（アプリ・手帳など）</label>
-  <div class="input-box"></div>
-</div>
+function scrollToBottom() {
+  chatArea.scrollTop = chatArea.scrollHeight;
+}
 
-<div class="field">
-  <label>続かなかった理由は何だと思いますか？</label>
-  <div class="hint">「一人でやろうとしていた」という言葉が出たら刺さっています。</div>
-  <div class="input-box"></div>
-</div>
+function addMessage(role, content, isTyping = false) {
+  const msg = document.createElement('div');
+  msg.className = `msg ${role}`;
 
-<div class="section-divider"></div>
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'ai' ? 'AI' : 'You';
 
-<!-- 生活リズム -->
-<h2>④ 生活リズム</h2>
+  if (isTyping) {
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = '<div class="typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+    msg.id = 'typing-indicator';
+    chatArea.appendChild(msg);
+    scrollToBottom();
+    return msg;
+  }
 
-<div class="two-col">
-  <div class="field">
-    <label>毎日何時頃が一番動けそうですか？</label>
-    <div class="input-line"></div>
-  </div>
-  <div class="field">
-    <label>朝・昼・夜で一番活動しやすい時間帯は？</label>
-    <div class="input-line"></div>
-  </div>
-</div>
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
 
-<div class="section-divider"></div>
+  // JSONを検出してカードに変換
+  const jsonMatch = content.match(/```json\n?([\s\S]*?)\n?```/);
+  if (jsonMatch) {
+    const beforeJson = content.substring(0, content.indexOf('```json')).trim();
+    const afterJson = content.substring(content.indexOf('```', content.indexOf('```json') + 7) + 3).trim();
 
-<!-- タスク設計 -->
-<h2>⑤ タスク設計（目標から逆算）</h2>
+    if (beforeJson) {
+      bubble.innerHTML = `<div style="margin-bottom:12px">${beforeJson.replace(/\n/g, '<br>')}</div>`;
+    }
 
-<div class="tip">目標 → 月次 → 週次 → 毎日の順番で逆算します。</div>
+    try {
+      const data = JSON.parse(jsonMatch[1]);
+      bubble.appendChild(createResultCard(data));
+    } catch(e) {
+      bubble.innerHTML += content.replace(/```json[\s\S]*?```/g, '').replace(/\n/g, '<br>');
+    }
 
-<div class="field">
-  <label>月次でやるべきこと</label>
-  <div class="input-box"></div>
-</div>
+    if (afterJson) {
+      const afterDiv = document.createElement('div');
+      afterDiv.style.marginTop = '12px';
+      afterDiv.innerHTML = afterJson.replace(/\n/g, '<br>');
+      bubble.appendChild(afterDiv);
+    }
+  } else {
+    bubble.innerHTML = content.replace(/\n/g, '<br>');
+  }
 
-<div class="field">
-  <label>週次でやるべきこと</label>
-  <div class="input-box"></div>
-</div>
+  msg.appendChild(avatar);
+  msg.appendChild(bubble);
+  chatArea.appendChild(msg);
+  scrollToBottom();
+  return msg;
+}
 
-<div class="field">
-  <label>毎日やること（ヒトミルに登録するタスク）</label>
-  <div class="hint">具体的な行動に落とし込んでください。「架電10件」「英単語20個」など。</div>
-  <div class="input-box-lg"></div>
-</div>
+function createResultCard(data) {
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.innerHTML = `<div class="result-card-title">タスク設計結果</div>`;
 
-<div class="section-divider"></div>
+  const goalInfo = document.createElement('div');
+  goalInfo.style.cssText = 'background:#F5F0E8;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:13px;';
+  goalInfo.innerHTML = `<strong>目標：</strong>${data.goal}${data.deadline ? `　<strong>期限：</strong>${data.deadline}` : ''}`;
+  card.appendChild(goalInfo);
 
-<!-- 面談後チェックリスト -->
-<h2>⑥ 面談後チェックリスト</h2>
+  const groups = [
+    { key: 'daily', label: '毎日やること' },
+    { key: 'weekly', label: '週次でやること' },
+    { key: 'monthly', label: '月次でやること' },
+  ];
 
-<div class="checklist">
-  <div class="check-item"><div class="checkbox"></div>目標をヒトミルに登録した</div>
-  <div class="check-item"><div class="checkbox"></div>毎日のタスクをヒトミルに登録した</div>
-  <div class="check-item"><div class="checkbox"></div>固定タスクを設定した</div>
-  <div class="check-item"><div class="checkbox"></div>クライアント専用URLを渡した</div>
-  <div class="check-item"><div class="checkbox"></div>ヒトミルの使い方を説明した</div>
-  <div class="check-item"><div class="checkbox"></div>LINE友達追加を確認した</div>
-  <div class="check-item"><div class="checkbox"></div>PayPayのQRコードを共有した</div>
-</div>
+  groups.forEach(g => {
+    if (data[g.key] && data[g.key].length > 0) {
+      const group = document.createElement('div');
+      group.className = 'task-group';
+      group.innerHTML = `<div class="task-group-label">${g.label}</div>`;
+      data[g.key].forEach(task => {
+        group.innerHTML += `<div class="task-item"><div class="task-dot"></div><div>${task}</div></div>`;
+      });
+      card.appendChild(group);
+    }
+  });
 
-<div class="section-divider"></div>
+  if (data.notes) {
+    const notes = document.createElement('div');
+    notes.style.cssText = 'background:#FFF8E0;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:12px;color:#666;border-left:3px solid #FFBD00;';
+    notes.innerHTML = `<strong>コーチメモ：</strong>${data.notes}`;
+    card.appendChild(notes);
+  }
 
-<!-- コーチメモ -->
-<h2>⑦ コーチメモ</h2>
-<div class="tip">クライアントの特性・気をつけること・声かけのポイントなどを記録しておきましょう。</div>
-<div class="input-box-lg"></div>
+  // コピーボタン
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.textContent = 'このタスクをコピーする';
+  copyBtn.onclick = () => {
+    const text = formatForCopy(data);
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.textContent = 'コピーしました！';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        copyBtn.textContent = 'このタスクをコピーする';
+        copyBtn.classList.remove('copied');
+      }, 2000);
+    });
+  };
+  card.appendChild(copyBtn);
 
+  return card;
+}
+
+function formatForCopy(data) {
+  let text = `【目標】${data.goal}\n`;
+  if (data.deadline) text += `【期限】${data.deadline}\n`;
+  text += '\n';
+  if (data.daily?.length) {
+    text += '【毎日やること】\n';
+    data.daily.forEach(t => text += `・${t}\n`);
+    text += '\n';
+  }
+  if (data.weekly?.length) {
+    text += '【週次でやること】\n';
+    data.weekly.forEach(t => text += `・${t}\n`);
+    text += '\n';
+  }
+  if (data.monthly?.length) {
+    text += '【月次でやること】\n';
+    data.monthly.forEach(t => text += `・${t}\n`);
+  }
+  if (data.notes) text += `\n【コーチメモ】${data.notes}`;
+  return text;
+}
+
+async function sendMessage(userText) {
+  if (isLoading || !userText.trim()) return;
+
+  isLoading = true;
+  sendBtn.disabled = true;
+
+  // ユーザーメッセージを表示
+  addMessage('user', userText);
+  conversationHistory.push({ role: 'user', content: userText });
+
+  // タイピングインジケーター
+  const typing = addMessage('ai', '', true);
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM_PROMPT,
+        messages: conversationHistory,
+      })
+    });
+
+    const data = await response.json();
+    const aiText = data.content?.map(c => c.text || '').join('') || 'エラーが発生しました。';
+
+    typing.remove();
+    addMessage('ai', aiText);
+    conversationHistory.push({ role: 'assistant', content: aiText });
+
+  } catch (err) {
+    typing.remove();
+    addMessage('ai', 'エラーが発生しました。もう一度お試しください。');
+  }
+
+  isLoading = false;
+  sendBtn.disabled = false;
+  userInput.focus();
+}
+
+function init() {
+  conversationHistory = [];
+  chatArea.innerHTML = '';
+
+  const welcomeMsg = `タスク設計AIへようこそ。
+
+達成したい目標を教えてください。
+どんな目標でも、具体的な毎日のタスクに落とし込みます。
+
+例：
+・3ヶ月で売上1000万を達成したい
+・宅建の資格を6ヶ月で取りたい
+・3ヶ月で体重を8kg落としたい`;
+
+  addMessage('ai', welcomeMsg);
+}
+
+// 送信処理
+sendBtn.addEventListener('click', () => {
+  const text = userInput.value.trim();
+  if (text) {
+    userInput.value = '';
+    userInput.style.height = 'auto';
+    sendMessage(text);
+  }
+});
+
+userInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const text = userInput.value.trim();
+    if (text) {
+      userInput.value = '';
+      userInput.style.height = 'auto';
+      sendMessage(text);
+    }
+  }
+});
+
+// テキストエリアの自動リサイズ
+userInput.addEventListener('input', () => {
+  userInput.style.height = 'auto';
+  userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+});
+
+resetBtn.addEventListener('click', init);
+
+// 初期化
+init();
+</script>
 </body>
 </html>
