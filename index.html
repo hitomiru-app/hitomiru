@@ -746,7 +746,7 @@ function renderUser(){
   const done=filtered.filter(t=>t.done).length;
   const total=filtered.length;
   const pct=total?Math.round(done/total*100):0;
-  const content=S.tab==="today"?userToday(filtered,all):S.tab==="calendar"?calView(all,false):S.tab==="goals"?userGoals():userRepeats();
+  const content=S.tab==="today"?userToday(filtered,all):S.tab==="dashboard"?renderUserDashboard(all):S.tab==="calendar"?calView(all,false):S.tab==="goals"?userGoals():userRepeats();
   // アバターにクライアント名を反映
   const side=pcSideNav(S.tab);
   const isPc=window.innerWidth>=768;
@@ -916,8 +916,61 @@ function userToday(filtered, allTasks=[]){
       </div>` : ""}
     </div>`;
 
-  const dashboard = renderUserDashboard(allTasks);
-  return `${dashboard}<div class="filters">${pills}</div>${rows}${pastDueSection}`;
+  // 目標グループ表示
+  const goalGroups = (() => {
+    // 目標に紐づくタスク
+    const grouped = S.goals.map(g => {
+      const gTasks = filtered.filter(t => t.goal_id === g.id);
+      if (!gTasks.length) return "";
+      const done = gTasks.filter(t=>t.done).length;
+      const pct = Math.round(done/gTasks.length*100);
+      const col = pct>=70?"var(--green)":pct>=40?"var(--y)":"var(--red)";
+      const taskRows = gTasks.map(t => {
+        const isDone = t.done;
+        const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
+        const catInfo = CATS.find(c=>c.id===t.cat);
+        return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
+          <button class="chk${isDone?" checked":""}" data-check="${t.id}"></button>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
+          </div>
+          <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${catInfo?.color||"#eee"};color:#fff;font-weight:700">${catInfo?.label||""}</span>
+        </div>`;
+      }).join("");
+      return `<div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid ${col};margin-bottom:8px">
+          <span style="font-size:13px;font-weight:700;color:var(--ink);flex:1">${esc(g.title)}</span>
+          <span style="font-size:12px;font-weight:700;color:${col}">${pct}%</span>
+          <span style="font-size:11px;color:var(--muted)">${done}/${gTasks.length}</span>
+        </div>
+        ${taskRows}
+      </div>`;
+    }).filter(Boolean).join("");
+
+    // 目標なしのタスク
+    const noGoalTasks = filtered.filter(t => !t.goal_id);
+    const noGoalRows = noGoalTasks.length ? `<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid #EEE;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--muted);flex:1">目標なし</span>
+      </div>
+      ${noGoalTasks.map(t => {
+        const isDone = t.done;
+        const timeStr = t.start_time ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${t.start_time}</span>` : "";
+        const catInfo = CATS.find(c=>c.id===t.cat);
+        return `<div class="task-row${isDone?" done":""}" data-id="${t.id}" style="padding:10px 12px;margin-bottom:4px">
+          <button class="chk${isDone?" checked":""}" data-check="${t.id}"></button>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:${isDone?"400":"600"};color:${isDone?"var(--muted)":"var(--ink)"};text-decoration:${isDone?"line-through":"none"}">${esc(t.title)}${timeStr}</div>
+          </div>
+          <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${catInfo?.color||"#eee"};color:#fff;font-weight:700">${catInfo?.label||""}</span>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
+    return grouped + noGoalRows;
+  })();
+
+  return `<div class="filters">${pills}</div>${goalGroups}${pastDueSection}`;
 }
 function editFormHTML(){
   if(S.editingTaskId===null)return "";
