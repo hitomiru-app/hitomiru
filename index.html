@@ -558,7 +558,7 @@ function getTodayRepeats(clientId=null){
     id:`r${r.id}`,rid:r.id,goal_id:r.goal_id,cat:r.cat,title:r.title,
     start_time:r.start_time||"",time:r.time||"",date:today(),
     done:!!S.repeatDone.find(d=>d.repeat_id===r.id&&d.date===today()),
-    isRepeat:true,repeatStr:r.repeat,client_id:null,
+    isRepeat:true,repeatStr:r.repeat,client_id:r.client_id||null,
   }));
 }
 function getAllTasks(){return [...S.tasks,...getTodayRepeats()];}
