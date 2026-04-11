@@ -1364,9 +1364,10 @@ function bind(){
       const lineUid = btn.dataset.lineUid || "";
       if (!lineUid) return;
 
-      // 今日のタスク数取得
-      const todayTasks = S.tasks.filter(t => t.client_id === clientId && t.date === today());
-      const taskCount = todayTasks.length;
+      // 今日のタスク数取得（固定タスク含む）
+      const todayRegular = S.tasks.filter(t => t.client_id === clientId && t.date === today());
+      const todayRepeats = getTodayRepeats().filter(r => r.client_id === clientId);
+      const taskCount = todayRegular.length + todayRepeats.length;
 
       // 目標取得
       const firstGoal = S.goals.length > 0 ? S.goals[0].title : "目標達成";
