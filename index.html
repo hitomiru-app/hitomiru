@@ -385,13 +385,26 @@ function showToast(msg, isError=false) {
 }
 
 // 締切超過 20パターン（ランダムで選択）
-function overdueTemplates(name, title) {
+function morningMessage(clientName, goalTitle, taskCount) {
+  const name = clientName.endsWith("さん") ? clientName : clientName + "さん";
+  const patterns = [
+    `${name}、おはようございます☀️\n今日も「${goalTitle}」に向けて一緒に頑張りましょう！\n今日のタスクは${taskCount}件です💪\nまず最初の1件からいきましょう！`,
+    `${name}、おはようございます🌟\n「${goalTitle}」まで着実に進んでいますよ！\n今日も${taskCount}件のタスクが待っています☀️\n一つずつこなしていきましょう💪`,
+    `${name}、おはようございます💪\n今日も一日よろしくお願いします！\n「${goalTitle}」に向けて今日も前進しましょう🌟\n今日のタスクは${taskCount}件です！`,
+    `おはようございます☀️${name}！\n今日も「${goalTitle}」を意識して動きましょう💪\n${taskCount}件のタスク、一緒に頑張りましょう🌟`,
+    `${name}、おはようございます🌟\n昨日もお疲れ様でした！\n今日も「${goalTitle}」に向けて着実に進みましょう☀️\n今日は${taskCount}件のタスクです💪`,
+  ];
+  return patterns[Math.floor(Math.random() * patterns.length)];
+}
+
+function overdueTemplates(name, title, doneCount=0, totalCount=0) {
   const suf = name ? (name.endsWith("さん") ? name : name + "さん") : "";
   const n = suf ? suf + "、" : "";
+  const praise = doneCount > 0 ? `今日${totalCount}件中${doneCount}件完了してますよ、いい調子です！\n` : "";
   const patterns = [
-    `${n}${title}の時間が過ぎました🌟\n今日中にやれそうですか？\nやれそうなら何時までにできそうか\n教えてくれると嬉しいです😊`,
-    `${n}${title}どうですか？⏰\n今日中にいけそうなら\n何時頃になりそうか教えてください💪`,
-    `${n}${title}の締切が過ぎましたよ😊\n今日まだ動けそうですか？\n何時までならいけそうか教えてください🌟`,
+    `${n}${title}の時間が過ぎました🌟\n${praise}今日中にやれそうですか？\nやれそうなら何時までにできそうか\n教えてくれると嬉しいです😊`,
+    `${n}${title}どうですか？⏰\n${praise}今日中にいけそうなら\n何時頃になりそうか教えてください💪`,
+    `${n}${title}の締切が過ぎましたよ😊\n${praise}今日まだ動けそうですか？\n何時までならいけそうか教えてください🌟`,
     `${n}${title}の時間が過ぎました⏰\n今日中にやれそうなら\n何時までにいけそうか教えてください🔥`,
     `${n}${title}どうですか？😊\n今日中にいけそうなら\n何時までにできそうか教えてください💪`,
     `${n}${title}の時間が過ぎましたよ🌟\n今日まだチャンスあります！\n何時までならいけそうか教えてください⏰`,
@@ -1075,6 +1088,7 @@ function renderClientDetail(){
     <div class="scroll">
       ${chart}
       <a href="${lineURL(allMsg)}" target="_blank" class="line-all-btn">今日の進捗をLINEで送る</a>
+      ${c.line_user_id ? `<button class="line-all-btn morning-msg-btn" style="background:#1A1A1A;color:#fff;border:none;margin-top:8px" data-client-id="${c.id}" data-client-name="${esc(c.name)}" data-line-uid="${c.line_user_id}">朝の応援メッセージを送る</button>` : ""}
       ${mgrSec(overdueTasks,"Overdue","var(--red)")}
       ${mgrSec(startedTasks,"進行中","var(--yd)")}
       ${mgrSec(pendingTasks,"Pending","var(--muted)")}
@@ -1115,7 +1129,9 @@ function mgrCard(t, client){
   const timeStr=fmtTimeRange(t);
   const meta=[cat.label,g?g.title:"",timeStr,t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean).join("  ·  ");
   const name=client?client.name+"さん":"";
-  const overdueMsg=overdueTemplates(client?client.name:"", t.title);
+  const todayTasks = client ? S.tasks.filter(t2=>t2.client_id===client.id&&t2.date===today()) : [];
+  const todayDone = todayTasks.filter(t2=>t2.done).length;
+  const overdueMsg=overdueTemplates(client?client.name:"", t.title, todayDone, todayTasks.length);
   const startedMsg=`${name}、${t.title}の開始時刻${t.start_time?"("+t.start_time+")":""}になりました。今から始められそうですか？`;
   const checkMsg=`${name}、${t.title}は今どんな状況ですか？今日中に終わる見込みはありますか？`;
   const cheerMsg=`${name}、${t.title}完了しましたね。お疲れ様でした！`;
@@ -1127,13 +1143,13 @@ function mgrCard(t, client){
     if (lineUid) {
       // 公式LINEから直接送信
       if (isOverdueBtn) {
-        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}" data-lineuid="${lineUid}">${label}</button>`;
+        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}" data-lineuid="${lineUid}" data-done="${todayDone}" data-total="${todayTasks.length}">${label}</button>`;
       }
       return `<button class="m-btn ${cls} direct-line-btn" data-msg="${esc(msg)}" data-lineuid="${lineUid}">${label}</button>`;
     } else {
       // 従来のシェアURL
       if (isOverdueBtn) {
-        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}">${label}</button>`;
+        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}" data-done="${todayDone}" data-total="${todayTasks.length}">${label}</button>`;
       }
       return `<a href="${lineURL(msg)}" target="_blank" class="m-btn ${cls}">${label}</a>`;
     }
@@ -1340,6 +1356,51 @@ function bind(){
     });
   });
 
+  // 朝の応援メッセージボタン
+  document.querySelectorAll(".morning-msg-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const clientId = +btn.dataset.clientId;
+      const clientName = btn.dataset.clientName || "";
+      const lineUid = btn.dataset.lineUid || "";
+      if (!lineUid) return;
+
+      // 今日のタスク数取得
+      const todayTasks = S.tasks.filter(t => t.client_id === clientId && t.date === today());
+      const taskCount = todayTasks.length;
+
+      // 目標取得
+      const firstGoal = S.goals.length > 0 ? S.goals[0].title : "目標達成";
+
+      const msg = morningMessage(clientName, firstGoal, taskCount);
+
+      btn.textContent = "送信中...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("https://qqgawirefsxcgrsdskpq.supabase.co/functions/v1/send-line-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: lineUid, message: msg }),
+        });
+        if (res.ok) {
+          btn.textContent = "送信しました！";
+          btn.style.background = "#10B981";
+          setTimeout(() => {
+            btn.textContent = "朝の応援メッセージを送る";
+            btn.style.background = "#1A1A1A";
+            btn.disabled = false;
+          }, 2000);
+        } else {
+          btn.textContent = "送信失敗";
+          btn.disabled = false;
+        }
+      } catch(e) {
+        btn.textContent = "送信失敗";
+        btn.disabled = false;
+      }
+    });
+  });
+
   // 完了タスク表示トグル（ユーザー）
   const utd = document.getElementById("user-toggle-done");
   if(utd) utd.addEventListener("click", () => { S.showUserDone = !S.showUserDone; render(); });
@@ -1347,7 +1408,7 @@ function bind(){
   // 時間切れボタン：押すたびにランダムテンプレ
   document.querySelectorAll(".overdue-send-btn").forEach(el=>{
     el.addEventListener("click",async()=>{
-      const msg=overdueTemplates(el.dataset.name||"", el.dataset.title||"");
+      const msg=overdueTemplates(el.dataset.name||"", el.dataset.title||"", +el.dataset.done||0, +el.dataset.total||0);
       const lineUid = el.dataset.lineuid;
       if (lineUid) {
         el.textContent = "送信中...";
