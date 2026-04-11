@@ -1380,7 +1380,7 @@ function bind(){
         const res = await fetch("https://qqgawirefsxcgrsdskpq.supabase.co/functions/v1/send-line-message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: lineUid, message: msg }),
+          body: JSON.stringify({ lineUserId: lineUid, message: msg }),
         });
         if (res.ok) {
           btn.textContent = "送信しました！";
