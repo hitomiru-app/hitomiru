@@ -557,8 +557,25 @@ async function toggleRepeatDone(rid,date){
     await sb("DELETE","repeat_done","",`?repeat_id=eq.${rid}&date=eq.${date}`);
     S.repeatDone=S.repeatDone.filter(d=>!(d.repeat_id===rid&&d.date===date));
   } else {
-    const rows=await sb("POST","repeat_done",{repeat_id:rid,date});
+    const rows=await sb("POST","repeat_done",{repeat_id:rid,date,started:true});
     if(rows&&rows[0])S.repeatDone.push(rows[0]);
+  }
+  render();
+}
+
+// 繰り返しタスクの「開始」をSupabaseに保存
+async function startRepeatTask(rid, date){
+  const existing = S.repeatDone.find(d=>d.repeat_id===rid&&d.date===date);
+  if(existing){
+    // すでにレコードがある → startedをtrueに更新
+    await sb("PATCH","repeat_done",{started:true},`?repeat_id=eq.${rid}&date=eq.${date}`);
+    S.repeatDone = S.repeatDone.map(d=>
+      (d.repeat_id===rid&&d.date===date)?{...d,started:true}:d
+    );
+  } else {
+    // レコードがない → started:trueで新規作成（done:falseのまま）
+    const rows = await sb("POST","repeat_done",{repeat_id:rid,date,started:true});
+    if(rows&&rows[0]) S.repeatDone.push(rows[0]);
   }
   render();
 }
@@ -589,12 +606,16 @@ async function deleteClient(id){
 }
 
 function getTodayRepeats(clientId=null){
-  return S.repeats.filter(r=>repeatMatchesToday(r.repeat)).map(r=>({
-    id:`r${r.id}`,rid:r.id,goal_id:r.goal_id,cat:r.cat,title:r.title,
-    start_time:r.start_time||"",time:r.time||"",date:today(),
-    done:!!S.repeatDone.find(d=>d.repeat_id===r.id&&d.date===today()),
-    isRepeat:true,repeatStr:r.repeat,client_id:r.client_id||null,
-  }));
+  return S.repeats.filter(r=>repeatMatchesToday(r.repeat)).map(r=>{
+    const rd = S.repeatDone.find(d=>d.repeat_id===r.id&&d.date===today());
+    return {
+      id:`r${r.id}`,rid:r.id,goal_id:r.goal_id,cat:r.cat,title:r.title,
+      start_time:r.start_time||"",time:r.time||"",date:today(),
+      done:!!rd,
+      started:!!(rd&&rd.started),
+      isRepeat:true,repeatStr:r.repeat,client_id:r.client_id||null,
+    };
+  });
 }
 function getAllTasks(){return [...S.tasks,...getTodayRepeats()];}
 // クライアント別タスク（管理者用：client_idで絞り込む、またはnullのもの全部）
@@ -1738,14 +1759,9 @@ function bind(){
       e.stopPropagation();
       const raw = el.dataset.start;
       if(String(raw).startsWith("r")){
-        // 繰り返しタスク：repeatStartedに記録
+        // 繰り返しタスク：Supabaseに開始を保存
         const rid = +raw.slice(1);
-        const key = `rstarted_${rid}_${today()}`;
-        localStorage.setItem(key, "1");
-        // S内のrepeatタスクのstartedをtrueに
-        S._repeatStarted = S._repeatStarted || {};
-        S._repeatStarted[`${rid}:${today()}`] = true;
-        render();
+        startRepeatTask(rid, today());
       } else {
         startTask(+raw);
       }
