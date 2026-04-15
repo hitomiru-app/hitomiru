@@ -903,14 +903,151 @@ function renderManager(){
   const isPc=window.innerWidth>=768;
   const wrap=isPc?`<div class="pc-main">`:"";
   const wrapEnd=isPc?`</div>`:"";
-
-  // クライアント詳細表示中
-  if(S.selClientId!==null){
-    return side+wrap+renderClientDetail()+wrapEnd;
-  }
-  // ダッシュボード（一覧）
-  return side+wrap+renderDashboard()+wrapEnd;
+  return side+wrap+renderActionBoard()+wrapEnd;
 }
+
+function renderActionBoard(){
+  // 全クライアントの今日のタスクを集めてアクション順に並べる
+  let allItems = [];
+  S.clients.forEach(c=>{
+    const tasks = getClientTasks(c.id).filter(t=>t.date===today());
+    tasks.forEach(t=>allItems.push({...t, _client:c}));
+  });
+
+  // アクション優先順位でソート
+  const rank = t => t.done?4: isOverdue(t)?0: isStarted(t)?1: 2;
+  allItems.sort((a,b)=>{
+    if(rank(a)===rank(b)){
+      const ta=a.start_time||a.time||"99:99", tb=b.start_time||b.time||"99:99";
+      return ta.localeCompare(tb);
+    }
+    return rank(a)-rank(b);
+  });
+
+  const actionItems = allItems.filter(t=>!t.done);
+  const doneItems   = allItems.filter(t=>t.done);
+  const totalOverdue = allItems.filter(t=>isOverdue(t)).length;
+  const totalDone    = doneItems.length;
+  const total        = allItems.length;
+
+  // サマリー
+  const summary = `<div class="summary" style="margin-bottom:16px">
+    <div class="sum-card"><div class="sum-num">${S.clients.length}</div><div class="sum-lbl">担当者</div></div>
+    <div class="sum-card"><div class="sum-num" style="color:var(--red)">${totalOverdue}</div><div class="sum-lbl">時間切れ</div></div>
+    <div class="sum-card"><div class="sum-num" style="color:var(--green)">${totalDone}</div><div class="sum-lbl">完了</div></div>
+    <div class="sum-card"><div class="sum-num">${total?Math.round(totalDone/total*100):0}%</div><div class="sum-lbl">達成率</div></div>
+  </div>`;
+
+  // アクションカード生成（クライアント名をタイトルに付ける）
+  const makeCard = item => {
+    const c = item._client;
+    const t = item;
+    const od = isOverdue(t);
+    const st = isStarted(t);
+    const sameTaskDays = S.tasks.filter(t2=>t2.title===t.title&&!t2.done&&t2.date<today()).length;
+    const rv = sameTaskDays >= 2;
+    const co = !t.done && t.date < today();
+    const ex = od && st;
+    const sk = t.done?"done": rv?"review": co?"carryover": ex?"extended": od?"overdue": st?"started":"pending";
+    const slMap = {done:"完了",review:"要見直し",carryover:"繰り越し",extended:"延長中",overdue:"時間切れ",started:"進行中",pending:"未着手"};
+    const sl = slMap[sk];
+    const timeStr = fmtTimeRange(t);
+    const g = getGoal(t.goal_id);
+    const meta = [c.name+"さん", timeStr, g?g.title:""].filter(Boolean).join("  ·  ");
+    const lineUid = c.line_user_id||null;
+    const colorStr = c.color||"#6C63FF";
+
+    function voiceBtn(type, label, cls){
+      const msg = msgTemplates(type, c.name, t.title);
+      if(lineUid){
+        return `<button class="m-btn ${cls} voice-btn" data-lineuid="${lineUid}" data-type="${type}" data-name="${esc(c.name)}" data-title="${esc(t.title)}" data-label="${esc(label)}">${label}</button>`;
+      }
+      return `<a href="${lineURL(msg)}" target="_blank" class="m-btn ${cls}">${label}</a>`;
+    }
+
+    let actions = "";
+    if(t.done){
+      actions = `<div class="m-actions">${voiceBtn("done","お疲れ様と伝える","m-btn-gray")}</div>`;
+    } else if(rv){
+      actions = `<div class="m-actions">${voiceBtn("review","タスクを一緒に見直す","m-btn-dark")}${voiceBtn("carryover","様子を聞く","m-btn-gray")}</div>`;
+    } else if(co){
+      actions = `<div class="m-actions">${voiceBtn("carryover","様子を聞く","m-btn-dark")}</div>`;
+    } else if(ex){
+      actions = `<div class="m-actions">${voiceBtn("extended","延長後の状況を聞く","m-btn-dark")}</div>`;
+    } else if(od){
+      actions = `<div class="m-actions">${voiceBtn("overdue","時間切れを伝える","m-btn-red")}</div>`;
+    } else if(st){
+      actions = `<div class="m-actions">${voiceBtn("started","応援する","m-btn-y")}</div>`;
+    }
+
+    // クライアントカラーのアクセントをカード左に付ける
+    return `<div class="m-card${od?" overdue":st?" started":t.done?" done-card":""}" style="border-left:3px solid ${colorStr}">
+      <div class="m-card-inner">
+        <div class="m-card-top">
+          <div class="m-dot ${sk}"></div>
+          <div class="m-task-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
+          <div class="m-status-tag ${sk}">${sl}</div>
+        </div>
+        <div class="m-meta">${meta}</div>
+      </div>
+      ${actions}
+    </div>`;
+  };
+
+  // アクションが必要なカード
+  const actionCards = actionItems.length===0
+    ? `<div class="empty">今すぐ対応が必要なタスクはありません</div>`
+    : actionItems.map(makeCard).join("");
+
+  // 完了カード（折りたたみ）
+  const doneCards = doneItems.length===0 ? "" : S.showDone
+    ? doneItems.map(makeCard).join("")
+    : "";
+  const togBtn = doneItems.length>0
+    ? `<button class="tog-btn" id="toggle-done">${S.showDone?`完了済みを隠す (${doneItems.length}件)`:`完了済みを表示 (${doneItems.length}件)`}</button>` : "";
+
+  // クライアント管理ボタン（下部）
+  const clientForm = S.addingClient ? `<div class="client-form">
+    <input class="form-input" id="cl-name" placeholder="クライアント名" style="font-size:14px">
+    <div class="form-row">
+      <div style="flex:1">
+        <div class="form-lbl" style="margin-bottom:6px">カラー</div>
+        <input type="color" id="cl-color" value="#6C63FF" style="width:100%;height:36px;border-radius:10px;border:1px solid var(--line);cursor:pointer">
+      </div>
+    </div>
+    <div class="form-btns">
+      <button class="form-ok" id="cl-ok">追加する</button>
+      <button class="form-cancel" id="cl-cancel">キャンセル</button>
+    </div>
+  </div>` : "";
+
+  return `<div class="mode-bar mgr">Manager</div>
+    <div class="hdr">
+      <div class="hdr-row">
+        <div>
+          <div class="hdr-eyebrow">${fmtNow()}</div>
+          <div class="hdr-title" style="font-size:22px">声かけリスト</div>
+          <div class="hdr-sub">${actionItems.length}件 対応中${totalOverdue>0?`  ·  <span style="color:var(--red);font-weight:700">${totalOverdue}件 時間切れ</span>`:""}</div>
+        </div>
+        <div class="av" style="font-size:12px">MGR</div>
+      </div>
+      ${summary}
+    </div>
+    <div class="scroll">
+      <div style="padding-top:8px">
+        ${actionCards}
+        ${doneCards}
+        ${togBtn}
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line)">
+          <button class="dashed-btn" id="cl-add-open">+ クライアントを追加</button>
+          ${clientForm}
+        </div>
+      </div>
+    </div>
+    <button id="mgr-reload" style="position:fixed;bottom:24px;right:24px;padding:10px 16px;border-radius:99px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--ink);box-shadow:0 2px 12px rgba(0,0,0,.1);z-index:10">更新</button>`;
+}
+
+
 
 function renderDashboard(){
   const alertRed=S.clients.filter(c=>calcClientAlert(getClientTasks(c.id))==="red");
@@ -1599,13 +1736,19 @@ function bind(){
   document.querySelectorAll("[data-start]").forEach(el=>
     el.addEventListener("click", e=>{
       e.stopPropagation();
-      const id = el.dataset.start;
-      // repeatsの場合はrepeatDoneに登録（startedフラグなし）
-      if(String(id).startsWith("r")){
-        // 繰り返しタスクはスタートの概念なし（そのままチェックへ）
-        return;
+      const raw = el.dataset.start;
+      if(String(raw).startsWith("r")){
+        // 繰り返しタスク：repeatStartedに記録
+        const rid = +raw.slice(1);
+        const key = `rstarted_${rid}_${today()}`;
+        localStorage.setItem(key, "1");
+        // S内のrepeatタスクのstartedをtrueに
+        S._repeatStarted = S._repeatStarted || {};
+        S._repeatStarted[`${rid}:${today()}`] = true;
+        render();
+      } else {
+        startTask(+raw);
       }
-      startTask(+id);
     })
   );
 
@@ -1613,8 +1756,14 @@ function bind(){
   document.querySelectorAll("[data-complete]").forEach(el=>
     el.addEventListener("click", e=>{
       e.stopPropagation();
-      const id = el.dataset.complete;
-      completeTask(+id);
+      const raw = el.dataset.complete;
+      if(String(raw).startsWith("r")){
+        // 繰り返しタスク：完了はtoggleRepeatDone
+        const rid = +raw.slice(1);
+        toggleRepeatDone(rid, today());
+      } else {
+        completeTask(+raw);
+      }
     })
   );
   const mpt=document.getElementById("mgr-pastdue-toggle");
