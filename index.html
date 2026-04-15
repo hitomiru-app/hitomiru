@@ -77,6 +77,11 @@
   .overdue-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
   .rep-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #EEF2FF; color: var(--blue); font-weight: 600; margin-left: 4px; }
   .started-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #FFFBEA; color: var(--yd); font-weight: 600; margin-left: 4px; }
+  .task-start-btn { padding: 6px 14px; border-radius: 8px; background: var(--y); color: var(--ink); font-size: 12px; font-weight: 700; flex-shrink: 0; transition: all .12s; }
+  .task-start-btn:active { transform: scale(.96); }
+  .task-complete-btn { padding: 6px 14px; border-radius: 8px; background: var(--green); color: #fff; font-size: 12px; font-weight: 700; flex-shrink: 0; transition: all .12s; }
+  .task-complete-btn:active { transform: scale(.96); }
+  .started-row { background: #FFFBEA; border-radius: 10px; padding: 12px; margin: 2px -8px; }
   /* ── ダッシュボード ── */
   .dash-wrap { padding: 16px 0 8px; display: flex; flex-direction: column; gap: 12px; }
   .dash-row { display: flex; gap: 10px; }
@@ -353,7 +358,7 @@ function getGoal(id){return S.goals.find(g=>g.id===id);}
 function isOverdue(t){const dl=t.time;if(t.done||t.date!==today()||!dl)return false;return dl<nowHHMM();}
 // 締切日を過ぎた未完了タスク（今日より前の日付）
 function isPastDue(t){if(t.done||t.isRepeat)return false;return t.date<today();}
-function isStarted(t){if(t.done||t.date!==today()||!t.start_time)return false;const now=nowHHMM();return t.start_time<=now&&(!t.time||now<t.time);}
+function isStarted(t){return !!t.started && !t.done;}
 function fmtTimeRange(t){if(t.start_time&&t.time)return `${t.start_time}→${t.time}`;if(t.start_time)return `${t.start_time}〜`;if(t.time)return `〜${t.time}`;return "";}
 function lineURL(msg){return `https://line.me/R/share?text=${encodeURIComponent(msg)}`;}
 
@@ -521,6 +526,14 @@ async function deleteTaskDB(id){
 async function toggleTask(id,done){
   await sb("PATCH","tasks",{done},`?id=eq.${id}`);
   S.tasks=S.tasks.map(t=>t.id===id?{...t,done}:t);render();
+}
+async function startTask(id){
+  await sb("PATCH","tasks",{started:true},`?id=eq.${id}`);
+  S.tasks=S.tasks.map(t=>t.id===id?{...t,started:true}:t);render();
+}
+async function completeTask(id){
+  await sb("PATCH","tasks",{done:true,started:true},`?id=eq.${id}`);
+  S.tasks=S.tasks.map(t=>t.id===id?{...t,done:true,started:true}:t);render();
 }
 async function addGoal(data){
   const rows=await sb("POST","goals",{title:data.title,cat:data.cat,deadline:data.deadline,progress:+data.progress});
@@ -699,13 +712,26 @@ function renderRowUser(t){
   const editBtns=!t.isRepeat?`
     <button class="task-edit-btn" data-edit="${t.id}">編集</button>
     <button class="task-del-btn" data-del="${t.id}">×</button>`:"";
-  return `<div class="task-row${t.done?" done":""}">
-    <div class="chk${t.done?" checked":""}" data-chk="${t.id}">${t.done?checkSVG():""}</div>
+
+  // 開始・完了ボタン
+  let actionBtn = "";
+  if(!t.done){
+    if(!st){
+      // 未着手 → 開始ボタン
+      actionBtn = `<button class="task-start-btn" data-start="${t.id}">開始</button>`;
+    } else {
+      // 開始済み → 完了ボタン
+      actionBtn = `<button class="task-complete-btn" data-complete="${t.id}">完了</button>`;
+    }
+  }
+
+  return `<div class="task-row${t.done?" done":st?" started-row":""}">
     <div style="flex:1;min-width:0">
-      <div class="task-title"${od?` style="color:var(--red)"`:""}>${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}${st&&!od?`<span class="started-badge">開始時間</span>`:""}</div>
+      <div class="task-title"${od?` style="color:var(--red)"`:""}>${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}${st&&!t.done?`<span class="started-badge">進行中</span>`:""}</div>
       ${meta?`<div class="task-meta">${meta}${od?`  <span style="color:var(--red);font-weight:600">時間切れ</span>`:""}</div>`:""}
     </div>
     ${od&&!t.done?`<div class="overdue-dot"></div>`:""}
+    ${actionBtn}
     ${editBtns}
   </div>`;
 }
@@ -1568,6 +1594,29 @@ function bind(){
 
   const td=document.getElementById("toggle-done");
   if(td)td.addEventListener("click",()=>{S.showDone=!S.showDone;render();});
+
+  // 開始ボタン
+  document.querySelectorAll("[data-start]").forEach(el=>
+    el.addEventListener("click", e=>{
+      e.stopPropagation();
+      const id = el.dataset.start;
+      // repeatsの場合はrepeatDoneに登録（startedフラグなし）
+      if(String(id).startsWith("r")){
+        // 繰り返しタスクはスタートの概念なし（そのままチェックへ）
+        return;
+      }
+      startTask(+id);
+    })
+  );
+
+  // 完了ボタン
+  document.querySelectorAll("[data-complete]").forEach(el=>
+    el.addEventListener("click", e=>{
+      e.stopPropagation();
+      const id = el.dataset.complete;
+      completeTask(+id);
+    })
+  );
   const mpt=document.getElementById("mgr-pastdue-toggle");
   if(mpt)mpt.addEventListener("click",()=>{S.showPastDue=!S.showPastDue;render();});
   const mr=document.getElementById("mgr-reload");
@@ -1575,7 +1624,60 @@ function bind(){
 }
 
 loadAll();
-if(isManager)setInterval(loadAll,30000);
+
+// ── Supabaseリアルタイム購読 ────────────────────────────
+function setupRealtime() {
+  // Supabase Realtime WebSocket
+  const wsUrl = SB_URL.replace('https://', 'wss://') + '/realtime/v1/websocket?apikey=' + SB_KEY + '&vsn=1.0.0';
+  let ws;
+  let reconnectTimer;
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      // tasksテーブルを購読
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:tasks',
+        event: 'phx_join',
+        payload: {},
+        ref: '1'
+      }));
+      console.log('[Realtime] 接続しました');
+    };
+
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.event === 'INSERT' || msg.event === 'UPDATE' || msg.event === 'DELETE') {
+        // DBに変化があったら即再取得
+        loadAll();
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[Realtime] 切断。5秒後に再接続...');
+      reconnectTimer = setTimeout(connect, 5000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  connect();
+}
+
+// ── 1分ごとの時刻監視（管理者用ボタン自動出現） ────────
+function setupTimeWatcher() {
+  setInterval(() => {
+    // 時刻が変わったのでrenderだけし直す（DBは変えない）
+    render();
+  }, 60 * 1000); // 1分ごと
+}
+
+// 起動
+setupRealtime();
+setupTimeWatcher();
 </script>
 </body>
 </html>
