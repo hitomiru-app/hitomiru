@@ -124,7 +124,16 @@
   .m-dot.overdue { background: var(--red); animation: pulse 1.5s infinite; }
   .m-dot.started { background: var(--y); animation: pulse 1.5s infinite; }
   .m-dot.pending { background: #DDD; }
-  .m-dot.done    { background: var(--green); }
+  .m-dot.done      { background: var(--green); }
+  .m-dot.carryover { background: #F97316; }
+  .m-dot.extended  { background: #8B5CF6; animation: pulse 1.5s infinite; }
+  .m-dot.review    { background: var(--red); animation: pulse 1.5s infinite; }
+  .m-status-tag.carryover { background: #FFF7ED; color: #C2410C; }
+  .m-status-tag.extended  { background: #F5F3FF; color: #7C3AED; }
+  .m-status-tag.review    { background: #FEE2E2; color: var(--red); }
+  .m-card.carryover { border-color: #F97316; }
+  .m-card.extended  { border-color: #8B5CF6; }
+  .m-card.review    { border-color: var(--red); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
   .m-task-title { font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.4; flex: 1; }
   .m-task-title.done-txt { text-decoration: line-through; color: var(--muted); font-weight: 400; }
@@ -1121,52 +1130,127 @@ function renderClientDetail(){
     <button id="mgr-reload" style="position:fixed;bottom:24px;right:24px;padding:10px 16px;border-radius:99px;background:#fff;border:1px solid var(--line);font-size:12px;font-weight:700;color:var(--ink);box-shadow:0 2px 12px rgba(0,0,0,.1);z-index:10">更新</button>`;
 }
 
-function mgrCard(t, client){
-  const od=isOverdue(t),st=isStarted(t);
-  const cat=getCat(t.cat),g=getGoal(t.goal_id);
-  const sk=t.done?"done":od?"overdue":st?"started":"pending";
-  const sl={done:"Done",overdue:"Overdue",started:"進行中",pending:"Pending"}[sk];
-  const timeStr=fmtTimeRange(t);
-  const meta=[cat.label,g?g.title:"",timeStr,t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean).join("  ·  ");
-  const name=client?client.name+"さん":"";
-  const todayTasks = client ? S.tasks.filter(t2=>t2.client_id===client.id&&t2.date===today()) : [];
-  const todayDone = todayTasks.filter(t2=>t2.done).length;
-  const overdueMsg=overdueTemplates(client?client.name:"", t.title, todayDone, todayTasks.length);
-  const startedMsg=`${name}、${t.title}の開始時刻${t.start_time?"("+t.start_time+")":""}になりました。今から始められそうですか？`;
-  const checkMsg=`${name}、${t.title}は今どんな状況ですか？今日中に終わる見込みはありますか？`;
-  const cheerMsg=`${name}、${t.title}完了しましたね。お疲れ様でした！`;
-  const clientName = client ? client.name : "";
-  const lineUid = client ? (client.line_user_id || null) : null;
 
-  // 送信ボタン生成（公式LINE or シェアURL）
-  function lineBtn(msg, label, cls, isOverdueBtn=false) {
+// ── 6つの声かけメッセージ生成 ────────────────────────────
+function msgTemplates(type, name, title) {
+  const n = name ? (name.endsWith("さん") ? name : name+"さん") : "";
+  const pre = n ? n+"、" : "";
+  const t = title;
+  const pools = {
+    overdue: [
+      `${pre}${t}の時間が過ぎていますよ。今日中にいけそうですか？何時頃なら動けそうか教えてください。`,
+      `${pre}${t}どうですか？まだ今日中にいけそうなら、何時頃できそうか教えてもらえると嬉しいです。`,
+      `${pre}${t}の時間が過ぎました。今日まだチャンスあります。何時までならいけそうですか？`,
+      `${pre}${t}、まだ大丈夫ですよ。今日中にいけそうなら何時頃できそうか教えてください。`,
+      `${pre}${t}の時間が来ていますよ。今日中にやれそうなら、目標時間を教えてください。一緒に見守ります。`,
+    ],
+    extended: [
+      `${pre}${t}、延長してから時間が経ちましたがどうですか？まだいけそうですか？`,
+      `${pre}${t}の様子はいかがですか？無理せず、今日できる範囲で教えてください。`,
+      `${pre}${t}、引き続き頑張っていますか？もう少しで終わりそうですか？`,
+      `${pre}${t}どうですか？終わりそうなら応援します。難しそうなら明日に回してもいいですよ。`,
+      `${pre}${t}の状況はどうですか？一緒に考えますので何でも教えてください。`,
+    ],
+    carryover: [
+      `${pre}${t}、昨日から持ち越しになっていますね。今日こそいけそうですか？`,
+      `${pre}${t}が続いていますね。何か難しいことがありましたか？一緒に考えましょう。`,
+      `${pre}${t}、今日はどうですか？もし難しければタスクを見直すのもありですよ。`,
+      `${pre}${t}が続いていますね。もし何か障壁があれば教えてください。一緒に解決策を考えます。`,
+      `${pre}${t}、まだ残っていますね。今日は何時頃にいけそうですか？`,
+    ],
+    review: [
+      `${pre}${t}が3日続いていますね。このタスク、一緒に見直しませんか？分け方や時間の設定を変えた方がいいかもしれません。`,
+      `${pre}${t}が続いていますよ。このタスク自体を少し変えてみましょうか？いつかお時間ありますか？`,
+      `${pre}${t}が3日連続で残っていますね。タスクの内容や量を一緒に調整したいです。少し話せますか？`,
+    ],
+    started: [
+      `${pre}${t}、スタートしましたね！応援しています。`,
+      `${pre}よし、${t}始めましたね！そのまま行きましょう。`,
+      `${pre}${t}スタート！一緒に頑張りましょう。`,
+      `${pre}${t}、始めてくれましたね。応援しています！`,
+      `${pre}${t}のスタート、確認しました。そのまま行きましょう！`,
+    ],
+    done: [
+      `${pre}${t}、完了しましたね！お疲れ様でした。`,
+      `${pre}${t}終わりましたね！よく頑張りました。`,
+      `${pre}${t}完了、確認しました。お疲れ様です！`,
+      `${pre}${t}、やりきりましたね！本当にお疲れ様でした。`,
+      `${pre}${t}完了！一歩前進しましたね。お疲れ様でした。`,
+    ],
+  };
+  const list = pools[type] || pools.overdue;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function mgrCard(t, client){
+  const od = isOverdue(t);
+  const st = isStarted(t);
+  const cat = getCat(t.cat);
+  const g   = getGoal(t.goal_id);
+
+  const isCarryover = !t.done && t.date < today();
+  const isExtended  = od && st;
+
+  const sameTaskDays = S.tasks.filter(t2=>
+    t2.title===t.title && !t2.done && t2.date < today()
+  ).length;
+  const needsReview = sameTaskDays >= 2;
+
+  const sk = t.done?"done": needsReview&&!t.done?"review": isCarryover?"carryover": isExtended?"extended": od?"overdue": st?"started":"pending";
+  const slMap = {done:"完了", review:"要見直し", carryover:"繰り越し", extended:"延長中", overdue:"時間切れ", started:"進行中", pending:"未着手"};
+  const sl = slMap[sk];
+
+  const timeStr = fmtTimeRange(t);
+  const meta = [cat.label, g?g.title:"", timeStr, t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean).join("  ·  ");
+
+  const clientName = client ? client.name : "";
+  const lineUid    = client ? (client.line_user_id || null) : null;
+
+  function voiceBtn(type, label, cls) {
+    const msg = msgTemplates(type, clientName, t.title);
     if (lineUid) {
-      // 公式LINEから直接送信
-      if (isOverdueBtn) {
-        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}" data-lineuid="${lineUid}" data-done="${todayDone}" data-total="${todayTasks.length}">${label}</button>`;
-      }
-      return `<button class="m-btn ${cls} direct-line-btn" data-msg="${esc(msg)}" data-lineuid="${lineUid}">${label}</button>`;
+      return `<button class="m-btn ${cls} voice-btn"
+        data-lineuid="${lineUid}"
+        data-type="${type}"
+        data-name="${esc(clientName)}"
+        data-title="${esc(t.title)}"
+        data-label="${esc(label)}">${label}</button>`;
     } else {
-      // 従来のシェアURL
-      if (isOverdueBtn) {
-        return `<button class="m-btn ${cls} overdue-send-btn" data-name="${esc(clientName)}" data-title="${esc(t.title)}" data-done="${todayDone}" data-total="${todayTasks.length}">${label}</button>`;
-      }
       return `<a href="${lineURL(msg)}" target="_blank" class="m-btn ${cls}">${label}</a>`;
     }
   }
 
-  const actions=t.done
-    ?`<div class="m-actions">${lineBtn(cheerMsg,"お疲れ様と伝える","m-btn-gray")}</div>`
-    :od?`<div class="m-actions">${lineBtn("","時間切れを伝える","m-btn-red",true)}${lineBtn(checkMsg,"状況を確認する","m-btn-dark")}</div>`
-    :st?`<div class="m-actions">${lineBtn(startedMsg,"開始を声かけ","m-btn-y")}${lineBtn(checkMsg,"状況を確認","m-btn-dark")}</div>`
-    :`<div class="m-actions">${lineBtn(checkMsg,"状況を確認する","m-btn-dark")}</div>`;
-  return `<div class="m-card${od?" overdue":st?" started":t.done?" done-card":""}">
+  let actions = "";
+  if (t.done) {
+    actions = `<div class="m-actions">${voiceBtn("done","お疲れ様と伝える","m-btn-gray")}</div>`;
+  } else if (needsReview) {
+    actions = `<div class="m-actions">${voiceBtn("review","タスクを一緒に見直す","m-btn-dark")}${voiceBtn("carryover","様子を聞く","m-btn-gray")}</div>`;
+  } else if (isCarryover) {
+    actions = `<div class="m-actions">${voiceBtn("carryover","様子を聞く","m-btn-dark")}</div>`;
+  } else if (isExtended) {
+    actions = `<div class="m-actions">${voiceBtn("extended","延長後の状況を聞く","m-btn-dark")}</div>`;
+  } else if (od) {
+    actions = `<div class="m-actions">${voiceBtn("overdue","時間切れを伝える","m-btn-red")}</div>`;
+  } else if (st) {
+    actions = `<div class="m-actions">${voiceBtn("started","応援する","m-btn-y")}</div>`;
+  }
+
+  const cardCls = needsReview&&!t.done?" review": isCarryover?" carryover": isExtended?" extended": od?" overdue": st?" started": t.done?" done-card":"";
+  const dotCls  = {done:"done", review:"review", carryover:"carryover", extended:"extended", overdue:"overdue", started:"started", pending:"pending"}[sk];
+
+  return `<div class="m-card${cardCls}">
     <div class="m-card-inner">
-      <div class="m-card-top"><div class="m-dot ${sk}"></div><div class="m-task-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div><div class="m-status-tag ${sk}">${sl}</div></div>
+      <div class="m-card-top">
+        <div class="m-dot ${dotCls}"></div>
+        <div class="m-task-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
+        <div class="m-status-tag ${sk}">${sl}</div>
+      </div>
       <div class="m-meta">${meta}</div>
-    </div>${actions}
+    </div>
+    ${actions}
   </div>`;
 }
+
 
 // ══ カレンダー（共通）════════════════════════════════════
 function calView(tasks,readOnly){
@@ -1405,6 +1489,28 @@ function bind(){
   // 完了タスク表示トグル（ユーザー）
   const utd = document.getElementById("user-toggle-done");
   if(utd) utd.addEventListener("click", () => { S.showUserDone = !S.showUserDone; render(); });
+
+  // voice-btn：6パターンの声かけボタン
+  document.querySelectorAll(".voice-btn").forEach(el=>{
+    el.addEventListener("click", async()=>{
+      const type     = el.dataset.type;
+      const name     = el.dataset.name || "";
+      const title    = el.dataset.title || "";
+      const label    = el.dataset.label || "送信";
+      const lineUid  = el.dataset.lineuid;
+      const msg      = msgTemplates(type, name, title);
+
+      if (lineUid) {
+        el.textContent = "送信中...";
+        el.disabled = true;
+        await sendLineMessage(lineUid, msg);
+        el.textContent = "送信済み ✓";
+        setTimeout(()=>{ el.textContent = label; el.disabled=false; }, 3000);
+      } else {
+        window.open(lineURL(msg), "_blank");
+      }
+    });
+  });
 
   // 時間切れボタン：押すたびにランダムテンプレ
   document.querySelectorAll(".overdue-send-btn").forEach(el=>{
