@@ -60,113 +60,74 @@ async function sendLineMessage(lineUserId, message) {
 
 
 // ===== モックデータ =====
-const DEFAULT_CLIENTS = [
-  {
-    id: 'c1',
-    name: '田中',
-    lineDisplayName: '田中太郎',
-    type: 'fixed',
-    targetExam: '簿記3級',
-    targetDate: '2026-06-15',
-    agreement: {
-      studyTime: '毎日21:00〜22:00',
-      dailyTask: '1日1時間・テキスト2ページ＋過去問5問',
-      duration: '3ヶ月',
-      rules: '時間厳守。1分でも遅れたら追撃あり。',
-    },
-    today: {
-      task: '簿記3級 テキスト p.45-60',
-      startTime: '21:00',
-      endTime: '22:00',
-      status: 'not_started',
-      startedAt: null,
-      completedAt: null,
-      events: [],
-    },
-  },
-  {
-    id: 'c2',
-    name: '佐藤',
-    lineDisplayName: '佐藤花子',
-    type: 'variable',
-    targetExam: 'TOEIC 800点',
-    targetDate: '2026-09-01',
-    agreement: {
-      studyTime: '毎日時間変動（前日夜に宣言）',
-      dailyTask: '1日30分・金フレ1セクション',
-      duration: '5ヶ月',
-      rules: '前日夜に翌日の時間を宣言。時間厳守。',
-    },
-    today: {
-      task: 'TOEIC 金フレ Section5',
-      startTime: '14:00',
-      endTime: '14:30',
-      status: 'overtime',
-      startedAt: null,
-      completedAt: null,
-      events: [
-        { type: 'overtime_detected', message: '着手時刻を10分過ぎました', time: new Date(Date.now() - 10 * 60000).toISOString() },
-      ],
-    },
-  },
-  {
-    id: 'c3',
-    name: '鈴木',
-    lineDisplayName: '鈴木一郎',
-    type: 'fixed',
-    targetExam: '宅建',
-    targetDate: '2026-10-20',
-    agreement: {
-      studyTime: '毎日20:00〜21:00',
-      dailyTask: '1日1時間・過去問10問',
-      duration: '6ヶ月',
-      rules: '時間厳守。',
-    },
-    today: {
-      task: '宅建 過去問 第3章 10問',
-      startTime: '20:00',
-      endTime: '21:00',
-      status: 'in_progress',
-      startedAt: '20:03',
-      completedAt: null,
-      events: [
-        { type: 'user_started', message: 'ユーザーが「開始しました」を送信', time: new Date(Date.now() - 15 * 60000).toISOString(), isNew: false },
-      ],
-    },
-  },
-  {
-    id: 'c4',
-    name: '山田',
-    lineDisplayName: '山田次郎',
-    type: 'variable',
-    targetExam: '秘書検定2級',
-    targetDate: '2026-06-10',
-    agreement: {
-      studyTime: '毎日時間変動',
-      dailyTask: '1日30分・テキスト3ページ',
-      duration: '2ヶ月',
-      rules: '前日夜に翌日の時間を宣言。',
-    },
-    today: {
-      task: '秘書検定2級 テキスト p.12-15',
-      startTime: '07:30',
-      endTime: '08:00',
-      status: 'completed',
-      startedAt: '07:32',
-      completedAt: '07:58',
-      events: [
-        { type: 'user_completed', message: 'ユーザーが「完了しました」を送信', time: new Date(Date.now() - 30 * 60000).toISOString(), isNew: false },
-      ],
-    },
-  },
-];
+
 
 // ===== ユーティリティ =====
-function loadClients() {
+
+// ===== ユーティリティ =====
+async function loadClientsFromSupabase() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_CLIENTS;
-  } catch { return DEFAULT_CLIENTS; }
+    const clientsData = await sb("GET", "clients", "", "?order=id");
+    const todayStr = new Date().toISOString().split('T')[0];
+    const tasksData = await sb("GET", "tasks", "", `?date=eq.${todayStr}`);
+    
+    if (!clientsData) return [];
+    
+    return clientsData.map(c => {
+      const clientTasks = tasksData ? tasksData.filter(t => t.client_id === c.id) : [];
+      const todayTask = clientTasks.length > 0 ? clientTasks[0] : null;
+      
+      let status = 'not_started';
+      if (todayTask) {
+        if (todayTask.done) status = 'completed';
+        else if (todayTask.started) status = 'in_progress';
+        else {
+          // Check if overtime
+          if (todayTask.start_time) {
+            const [h, m] = todayTask.start_time.split(':').map(Number);
+            const now = new Date();
+            const t = new Date();
+            t.setHours(h, m, 0, 0);
+            if (now > t) status = 'overtime';
+          }
+        }
+      }
+      
+      return {
+        id: c.id,
+        name: c.name,
+        lineDisplayName: c.name, // Fallback
+        line_user_id: c.line_user_id,
+        type: 'variable', // Default
+        targetExam: '設定なし',
+        targetDate: '',
+        agreement: {
+          studyTime: '未設定',
+          dailyTask: '未設定',
+          duration: '未設定',
+          rules: '未設定',
+        },
+        today: {
+          task: todayTask ? todayTask.title : 'タスクなし',
+          startTime: todayTask ? todayTask.start_time : '',
+          endTime: todayTask ? todayTask.time : '',
+          status: status,
+          startedAt: todayTask && todayTask.started ? todayTask.start_time : null,
+          completedAt: todayTask && todayTask.done ? todayTask.time : null,
+          events: [],
+        },
+      };
+    });
+  } catch (e) {
+    console.error("Supabase読み込みエラー:", e);
+    return [];
+  }
+}
+
+function loadClients() {
+  return []; // Initial empty state
+}
+ catch { return DEFAULT_CLIENTS; }
 }
 function saveClients(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
 
@@ -190,6 +151,7 @@ function minutesSince(timeStr) {
   return Math.floor((now - t) / 60000);
 }
 
+// ===== LINE送信（URLスキーム） =====
 
 // ===== LINE送信（URLスキーム & Supabase） =====
 async function openLineWithMessage(message, client) {
@@ -208,7 +170,9 @@ async function openLineWithMessage(message, client) {
   window.open(url, '_blank');
   return false;
 }
-
+`;
+  window.open(url, '_blank');
+}
 
 // ===== メッセージテンプレート =====
 const COACH_TEMPLATES = {
@@ -284,7 +248,7 @@ function Sidebar({ page, setPage, newCount }) {
     { key: 'inbox', label: '通知', icon: '🔔', badge: newCount },
     { key: 'dashboard', label: 'ダッシュボード', icon: '◉' },
     { key: 'clients', label: 'クライアント', icon: '👥' },
-    { key: 'simulator', label: 'ユーザー操作', icon: '📱' },
+    
   ];
   return (
     <>
@@ -710,54 +674,20 @@ function Field({ label, value, onChange, placeholder, type = 'text' }) {
 }
 
 // ===== ユーザー操作シミュレーター =====
-function Simulator({ clients, onUserAction, onForceOvertime }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">📱 ユーザー操作</h1>
-        <p className="text-sm text-gray-500 mt-1">ユーザー側のリッチメニュー操作をシミュレーション。実運用ではLステップから連携されます。</p>
-      </div>
-
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
-        <div className="font-semibold mb-1">💡 使い方</div>
-        <p className="text-xs leading-relaxed">ユーザーがLINEのリッチメニューボタンを押したと想定して、ここからイベントを発生させてください。通知画面に「NEW」バッジ付きで表示されます。</p>
-      </div>
-
-      <div className="space-y-3">
-        {clients.map(c => (
-          <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4">
-            <div className="mb-3">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-900">{c.name}さん</span>
-                <span className="text-xs bg-[#FFF3C4] text-[#8B6914] font-medium px-2 py-0.5 rounded-md">{c.type === 'fixed' ? '固定制' : '変動制'}</span>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{c.today.task}・{c.today.startTime}</div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <SimButton icon="🔥" label="開始する" color="bg-blue-500 hover:bg-blue-600" onClick={() => onUserAction(c.id, 'user_started')} />
-              <SimButton icon="🏁" label="完了する" color="bg-green-500 hover:bg-green-600" onClick={() => onUserAction(c.id, 'user_completed')} />
-              <SimButton icon="🆘" label="SOS" color="bg-purple-500 hover:bg-purple-600" onClick={() => onUserAction(c.id, 'user_sos')} />
-              <SimButton icon="⏰" label="時間切れ" color="bg-red-500 hover:bg-red-600" onClick={() => onForceOvertime(c.id)} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SimButton({ icon, label, color, onClick }) {
-  return (
-    <button onClick={onClick} className={`${color} text-white text-xs font-semibold px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5`}>
-      <span>{icon}</span><span>{label}</span>
-    </button>
-  );
-}
-
 // ===== メインアプリ =====
 function App() {
   const [page, setPage] = useState('inbox');
-  const [clients, setClients] = useState(loadClients);
+  
+  const [clients, setClients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    loadClientsFromSupabase().then(data => {
+      setClients(data);
+      setLoading(false);
+    });
+  }, []);
+
   const [toast, setToast] = useState(null);
   const [agreementClient, setAgreementClient] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
