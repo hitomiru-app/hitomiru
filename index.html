@@ -127,8 +127,6 @@ async function loadClientsFromSupabase() {
 function loadClients() {
   return []; // Initial empty state
 }
- catch { return DEFAULT_CLIENTS; }
-}
 function saveClients(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
 
 function formatDate(d) {
@@ -169,9 +167,6 @@ async function openLineWithMessage(message, client) {
   const url = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
   window.open(url, '_blank');
   return false;
-}
-`;
-  window.open(url, '_blank');
 }
 
 // ===== メッセージテンプレート =====
@@ -218,8 +213,9 @@ function pickRandom(arr) {
 }
 
 function renderTemplate(template, client) {
-  const time = client.today.startTime;
-  return template.replace(/〇〇/g, client.name).replace(/〇時/g, `${time.split(':')[0]}時`);
+  const time = client.today.startTime || '';
+  const hour = time ? time.split(':')[0] : '';
+  return template.replace(/〇〇/g, client.name).replace(/〇時/g, hour + '時');
 }
 
 function getPushTemplate(client) {
