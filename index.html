@@ -247,9 +247,10 @@ function minutesSince(timeStr) {
 // ===== カード色・タイマー計算 =====
 function getCardStyle(client) {
   const t = client.today;
-  // 完了・失敗はそのまま
   if (t.status === 'completed') return { bg: 'bg-white', border: 'border-green-200', badge: null };
-  if (t.status === 'failed') return { bg: 'bg-gray-50', border: 'border-gray-200', badge: null, dimmed: true };
+  if (t.status === 'failed')    return { bg: 'bg-gray-50', border: 'border-gray-200', badge: null, dimmed: true };
+  if (t.status === 'sos')       return { bg: 'bg-orange-50', border: 'border-orange-400', badge: '🆘 SOS', sos: true };
+  if (t.status === 'in_progress') return { bg: 'bg-blue-50', border: 'border-blue-400', badge: '✏️ 進行中' };
 
   if (!t.startTime) return { bg: 'bg-white', border: 'border-gray-100', badge: null };
 
@@ -257,26 +258,27 @@ function getCardStyle(client) {
   const now = new Date();
   const startMs = new Date();
   startMs.setHours(h, m, 0, 0);
-  const diffMin = Math.floor((now - startMs) / 60000); // 正=経過, 負=前
+  const diffMin = Math.floor((now - startMs) / 60000);
 
   if (diffMin < -15) return { bg: 'bg-white', border: 'border-gray-100', badge: null };
   if (diffMin < 0)   return { bg: 'bg-blue-50', border: 'border-blue-300', badge: `⏰ あと${Math.abs(diffMin)}分` };
   if (diffMin < 10)  return { bg: 'bg-yellow-50', border: 'border-yellow-300', badge: `⚡ ${diffMin}分経過` };
-  // 10分以上 → 赤
   const pushLevel = diffMin >= 30 ? '最終通告' : diffMin >= 20 ? '追撃2回目' : '追撃1回目';
   return { bg: 'bg-red-50', border: 'border-red-300', badge: `🔥 +${diffMin}分`, pushLevel };
 }
 
 function sortClientsByTime(clients) {
-  const active = clients.filter(c => c.today.status !== 'completed' && c.today.status !== 'failed');
-  const done   = clients.filter(c => c.today.status === 'completed' || c.today.status === 'failed');
+  const sos     = clients.filter(c => c.today.status === 'sos');
+  const active  = clients.filter(c => !['completed','failed','sos'].includes(c.today.status));
+  const done    = clients.filter(c => ['completed','failed'].includes(c.today.status));
   const parseTime = (t) => {
     if (!t) return 9999;
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
   };
   active.sort((a, b) => parseTime(a.today.startTime) - parseTime(b.today.startTime));
-  return [...active, ...done];
+  // SOS → アクティブ → 完了/失敗
+  return [...sos, ...active, ...done];
 }
 
 // ===== LINE送信（既存Edge Function経由） =====
@@ -580,10 +582,10 @@ function Inbox({ clients, onReply, onOpenAgreement, onMarkAllRead }) {
 
   const eventMeta = (type) => {
     const map = {
-      user_started: { icon: '🔥', label: '開始しました', color: 'bg-blue-50 border-blue-100', suggest: 'praise_start' },
-      user_completed: { icon: '🏁', label: '完了しました', color: 'bg-green-50 border-green-100', suggest: 'praise_complete' },
-      user_sos: { icon: '🆘', label: 'SOSを送信', color: 'bg-purple-50 border-purple-100', suggest: 'sos_reply' },
-      overtime_detected: { icon: '⏰', label: '時間切れ', color: 'bg-red-50 border-red-100', suggest: 'push_first' },
+      user_started:       { icon: '🔥', label: '開始します！',              color: 'bg-blue-50 border-blue-200',   suggest: 'praise_start' },
+      user_completed:     { icon: '🏁', label: '完了しました！',            color: 'bg-green-50 border-green-200', suggest: 'praise_complete' },
+      user_sos:           { icon: '🆘', label: 'SOS！時間を変更したいです', color: 'bg-orange-50 border-orange-300', suggest: 'sos_reply' },
+      overtime_detected:  { icon: '⏰', label: '時間切れ',                  color: 'bg-red-50 border-red-100',     suggest: 'push_first' },
     };
     return map[type] || { icon: '📌', label: type, color: 'bg-gray-50 border-gray-100', suggest: 'pre_reminder' };
   };
@@ -705,15 +707,17 @@ function ClientRow({ client, onReply, now }) {
   const ws = client.weeklyStats || { success: 0, total: 0 };
 
   const statusConfig = {
-    not_started: { label: '未着手', cls: 'bg-gray-100 text-gray-600' },
+    not_started: { label: '未着手',    cls: 'bg-gray-100 text-gray-600' },
     in_progress: { label: '進行中 ✏️', cls: 'bg-blue-100 text-blue-700' },
-    overtime:    { label: '時間切れ', cls: 'bg-red-100 text-red-700' },
-    completed:   { label: '完了 ✅', cls: 'bg-green-100 text-green-700' },
-    failed:      { label: '未実施', cls: 'bg-gray-100 text-gray-400' },
+    overtime:    { label: '時間切れ',  cls: 'bg-red-100 text-red-700' },
+    completed:   { label: '完了 ✅',   cls: 'bg-green-100 text-green-700' },
+    failed:      { label: '未実施',    cls: 'bg-gray-100 text-gray-400' },
+    sos:         { label: '🆘 SOS！',  cls: 'bg-orange-100 text-orange-700 animate-pulse' },
   }[t.status] || { label: '未設定', cls: 'bg-gray-100 text-gray-600' };
 
   const suggestCategory = t.status === 'completed' ? 'praise_complete'
     : t.status === 'in_progress' ? 'praise_start'
+    : t.status === 'sos' ? 'sos_reply'
     : style.pushLevel ? getPushTemplate(client).category
     : 'pre_reminder';
 
@@ -746,8 +750,13 @@ function ClientRow({ client, onReply, now }) {
       {!style.dimmed && (
         <div className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2">
           <button onClick={() => onReply(client, suggestCategory)}
-            className={`flex-1 text-white text-xs font-bold px-4 py-2 rounded-lg ${style.pushLevel ? 'bg-red-500 hover:bg-red-600' : 'bg-[#FFB800] hover:bg-[#E6A600]'}`}>
-            {style.pushLevel ? `🔥 ${style.pushLevel}を送る` : '💬 返信する'}
+            className={`flex-1 text-white text-xs font-bold px-4 py-2 rounded-lg ${
+              style.sos ? 'bg-orange-500 hover:bg-orange-600' :
+              style.pushLevel ? 'bg-red-500 hover:bg-red-600' :
+              'bg-[#FFB800] hover:bg-[#E6A600]'
+            }`}>
+            {style.sos ? '🆘 時間変更に対応する' :
+             style.pushLevel ? `🔥 ${style.pushLevel}を送る` : '💬 返信する'}
           </button>
         </div>
       )}
@@ -937,11 +946,11 @@ function Simulator({ clients, onUserAction, onForceOvertime }) {
               </div>
               <div className="text-xs text-gray-500 mt-1">{c.today.task}・{c.today.startTime}</div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <SimButton icon="🔥" label="開始する" color="bg-blue-500 hover:bg-blue-600" onClick={() => onUserAction(c.id, 'user_started')} />
-              <SimButton icon="🏁" label="完了する" color="bg-green-500 hover:bg-green-600" onClick={() => onUserAction(c.id, 'user_completed')} />
-              <SimButton icon="🆘" label="SOS" color="bg-purple-500 hover:bg-purple-600" onClick={() => onUserAction(c.id, 'user_sos')} />
-              <SimButton icon="⏰" label="時間切れ" color="bg-red-500 hover:bg-red-600" onClick={() => onForceOvertime(c.id)} />
+            <div className="grid grid-cols-2 gap-2">
+              <SimButton icon="🔥" label="開始します！" color="bg-blue-500 hover:bg-blue-600" onClick={() => onUserAction(c.id, 'user_started')} />
+              <SimButton icon="🏁" label="完了しました！" color="bg-green-500 hover:bg-green-600" onClick={() => onUserAction(c.id, 'user_completed')} />
+              <SimButton icon="🆘" label="SOS！時間を変更したいです" color="bg-orange-500 hover:bg-orange-600" onClick={() => onUserAction(c.id, 'user_sos')} />
+              <SimButton icon="⏰" label="時間切れ（強制）" color="bg-red-500 hover:bg-red-600" onClick={() => onForceOvertime(c.id)} />
             </div>
           </div>
         ))}
@@ -1020,35 +1029,41 @@ function App() {
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
     const messages = {
-      user_started: 'ユーザーが「開始しました」を送信',
-      user_completed: 'ユーザーが「完了しました」を送信',
-      user_sos: 'ユーザーが「SOS」を送信',
+      user_started:   '🔥 ユーザーが「開始します！」を送信',
+      user_completed: '🏁 ユーザーが「完了しました！」を送信',
+      user_sos:       '🆘 ユーザーが「SOS！時間を変更したいです」を送信',
+    };
+
+    // typeごとのステータスマッピング
+    const statusMap = {
+      user_started:   'in_progress',
+      user_completed: 'completed',
+      user_sos:       'sos',
     };
 
     try {
-      // daily_logを更新
       const client = clients.find(c => c.id === clientId);
       if (!client) return;
 
-      let logUpdate = {
+      const newStatus = statusMap[type] || client.today.status;
+      const logUpdate = {
         client_id: clientId,
         date: today,
         task: client.today.task,
         start_time: client.today.startTime,
         end_time: client.today.endTime,
-        status: client.today.status,
-        started_at: client.today.startedAt,
-        completed_at: client.today.completedAt,
+        status: newStatus,
+        started_at: type === 'user_started' ? timeStr : client.today.startedAt,
+        completed_at: type === 'user_completed' ? timeStr : client.today.completedAt,
+        target_exam: client.targetExam,
+        target_date: client.targetDate || null,
+        client_type: client.type,
+        agreement_study_time: client.agreement.studyTime,
+        agreement_daily_task: client.agreement.dailyTask,
+        agreement_duration: client.agreement.duration,
+        agreement_rules: client.agreement.rules,
         updated_at: new Date().toISOString(),
       };
-
-      if (type === 'user_started') {
-        logUpdate.status = 'in_progress';
-        logUpdate.started_at = timeStr;
-      } else if (type === 'user_completed') {
-        logUpdate.status = 'completed';
-        logUpdate.completed_at = timeStr;
-      }
 
       await upsertDailyLog(logUpdate);
       await insertEvent({
@@ -1059,7 +1074,12 @@ function App() {
         is_new: true,
       });
 
-      showToast('新しい通知が届きました', 'info');
+      const toastMsg = type === 'user_sos'
+        ? `🆘 ${clients.find(c=>c.id===clientId)?.name}さんからSOSが届きました！`
+        : type === 'user_completed'
+        ? `✅ ${clients.find(c=>c.id===clientId)?.name}さんが完了しました！`
+        : `🔥 ${clients.find(c=>c.id===clientId)?.name}さんが開始しました！`;
+      showToast(toastMsg, type === 'user_sos' ? 'error' : 'success');
       await loadData();
     } catch (e) {
       showToast('エラー: ' + e.message, 'error');
