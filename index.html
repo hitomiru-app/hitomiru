@@ -34,17 +34,18 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== Supabase テーブル操作 =====
-// テーブル: clients
-// id (uuid), name, line_display_name, type, target_exam, target_date,
+// テーブル: clients（既存）
+// id (bigint), name, color, token, line_user_id, created_at
+// ※ target_exam等の追加カラムはdaily_logsのmetaで管理
+
+// テーブル: daily_logs（新規作成済み）
+// id (uuid), client_id (bigint fk), date (date), task, start_time, end_time,
+// status, started_at, completed_at, target_exam, target_date,
 // agreement_study_time, agreement_daily_task, agreement_duration, agreement_rules,
-// created_at
+// created_at, updated_at
 
-// テーブル: daily_logs
-// id (uuid), client_id (fk), date (date), task, start_time, end_time,
-// status, started_at, completed_at, created_at, updated_at
-
-// テーブル: events
-// id (uuid), client_id (fk), date (date), type, message, is_new, created_at
+// テーブル: events（新規作成済み）
+// id (uuid), client_id (bigint fk), date (date), type, message, is_new, created_at
 
 async function fetchClients() {
   const { data, error } = await supabase
@@ -127,6 +128,8 @@ async function deleteClient(id) {
 }
 
 // ===== データ統合 =====
+// clientsテーブルは既存スキーマ（id bigint, name, color, token, line_user_id）
+// 契約情報・目標はdaily_logsに保持
 function mergeClientData(clients, logs, events) {
   const today = getTodayStr();
   return clients.map(c => {
@@ -139,20 +142,29 @@ function mergeClientData(clients, logs, events) {
       status: 'not_started',
       started_at: null,
       completed_at: null,
+      target_exam: '',
+      target_date: '',
+      client_type: 'fixed',
+      agreement_study_time: '',
+      agreement_daily_task: '',
+      agreement_duration: '',
+      agreement_rules: '時間厳守。1分でも遅れたら追撃あり。',
     };
     const clientEvents = events.filter(e => e.client_id === c.id);
     return {
       id: c.id,
       name: c.name,
-      lineDisplayName: c.line_display_name,
-      type: c.type,
-      targetExam: c.target_exam,
-      targetDate: c.target_date,
+      lineUserId: c.line_user_id,
+      color: c.color || '#FFB800',
+      token: c.token,
+      type: log.client_type || 'fixed',
+      targetExam: log.target_exam || '',
+      targetDate: log.target_date || '',
       agreement: {
-        studyTime: c.agreement_study_time,
-        dailyTask: c.agreement_daily_task,
-        duration: c.agreement_duration,
-        rules: c.agreement_rules,
+        studyTime: log.agreement_study_time || '',
+        dailyTask: log.agreement_daily_task || '',
+        duration: log.agreement_duration || '',
+        rules: log.agreement_rules || '',
       },
       today: {
         logId: log.id,
@@ -302,49 +314,18 @@ function ErrorBanner({ error, onRetry }) {
       <div className="flex gap-2 flex-wrap">
         <button onClick={onRetry} className="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">再試行</button>
         <button onClick={() => {
-          const sql = `-- ヒトミル Supabase テーブル作成SQL
+          const sql = `-- ヒトミル daily_logs カラム追加SQL
+-- ※ clientsテーブルは既存のものをそのまま使用
 
-create table clients (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  line_display_name text,
-  type text not null default 'fixed',
-  target_exam text,
-  target_date date,
-  agreement_study_time text,
-  agreement_daily_task text,
-  agreement_duration text,
-  agreement_rules text,
-  created_at timestamptz default now()
-);
+alter table daily_logs
+  add column if not exists target_exam text,
+  add column if not exists target_date date,
+  add column if not exists client_type text default 'fixed',
+  add column if not exists agreement_study_time text,
+  add column if not exists agreement_daily_task text,
+  add column if not exists agreement_duration text,
+  add column if not exists agreement_rules text;
 
-create table daily_logs (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid references clients(id) on delete cascade,
-  date date not null,
-  task text,
-  start_time text,
-  end_time text,
-  status text not null default 'not_started',
-  started_at text,
-  completed_at text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now(),
-  unique(client_id, date)
-);
-
-create table events (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid references clients(id) on delete cascade,
-  date date not null,
-  type text not null,
-  message text,
-  is_new boolean default true,
-  created_at timestamptz default now()
-);
-
--- RLS（Row Level Security）を無効化（開発用）
-alter table clients disable row level security;
 alter table daily_logs disable row level security;
 alter table events disable row level security;`;
           navigator.clipboard.writeText(sql).then(() => alert('SQLをコピーしました！\nSupabase → SQL Editor に貼り付けて実行してください'));
@@ -779,7 +760,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }) {
 
 function AddClientForm({ onAdd, onCancel }) {
   const [form, setForm] = useState({
-    name: '', lineDisplayName: '', type: 'fixed',
+    name: '', lineUserId: '', token: '', color: '#FFB800', type: 'fixed',
     targetExam: '', targetDate: '',
     studyTime: '', dailyTask: '', duration: '', rules: '時間厳守。1分でも遅れたら追撃あり。',
     task: '', startTime: '21:00', endTime: '22:00',
@@ -798,7 +779,7 @@ function AddClientForm({ onAdd, onCancel }) {
       <h3 className="font-semibold text-gray-900">クライアント追加</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="名前（苗字）" value={form.name} onChange={v => setForm({...form, name: v})} placeholder="田中" />
-        <Field label="LINE表示名" value={form.lineDisplayName} onChange={v => setForm({...form, lineDisplayName: v})} placeholder="田中太郎" />
+        <Field label="LINE User ID" value={form.lineUserId} onChange={v => setForm({...form, lineUserId: v})} placeholder="Uxxxxxxxxxxxx" />
         <div>
           <label className="block text-xs text-gray-600 mb-1">タイプ</label>
           <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm">
@@ -1036,31 +1017,32 @@ function App() {
 
   const handleAdd = async (form) => {
     try {
+      // clientsテーブルは既存スキーマ（name, color, line_user_id, token）のみ
       const newClient = await addClient({
         name: form.name,
-        line_display_name: form.lineDisplayName || form.name,
-        type: form.type,
-        target_exam: form.targetExam,
-        target_date: form.targetDate || null,
-        agreement_study_time: form.studyTime,
-        agreement_daily_task: form.dailyTask,
-        agreement_duration: form.duration,
-        agreement_rules: form.rules,
+        color: form.color || '#FFB800',
+        line_user_id: form.lineUserId || '',
+        token: form.token || '',
       });
 
-      // 今日のログも作成
-      if (form.task) {
-        await upsertDailyLog({
-          client_id: newClient.id,
-          date: getTodayStr(),
-          task: form.task,
-          start_time: form.startTime,
-          end_time: form.endTime,
-          status: 'not_started',
-          started_at: null,
-          completed_at: null,
-        });
-      }
+      // 契約情報・タスク・目標はdaily_logsに保存
+      await upsertDailyLog({
+        client_id: newClient.id,
+        date: getTodayStr(),
+        task: form.task || '（未設定）',
+        start_time: form.startTime || '21:00',
+        end_time: form.endTime || '22:00',
+        status: 'not_started',
+        started_at: null,
+        completed_at: null,
+        target_exam: form.targetExam || '',
+        target_date: form.targetDate || null,
+        client_type: form.type || 'fixed',
+        agreement_study_time: form.studyTime || '',
+        agreement_daily_task: form.dailyTask || '',
+        agreement_duration: form.duration || '',
+        agreement_rules: form.rules || '時間厳守。1分でも遅れたら追撃あり。',
+      });
 
       showToast('クライアントを追加しました', 'success');
       await loadData();
@@ -1092,6 +1074,14 @@ function App() {
         status: client.today.status,
         started_at: client.today.startedAt,
         completed_at: client.today.completedAt,
+        // 契約情報を引き継ぐ
+        target_exam: form.targetExam || client.targetExam || '',
+        target_date: form.targetDate || client.targetDate || null,
+        client_type: form.type || client.type || 'fixed',
+        agreement_study_time: form.studyTime || client.agreement.studyTime || '',
+        agreement_daily_task: form.dailyTask || client.agreement.dailyTask || '',
+        agreement_duration: form.duration || client.agreement.duration || '',
+        agreement_rules: form.rules || client.agreement.rules || '',
         updated_at: new Date().toISOString(),
       });
       showToast('タスクを保存しました', 'success');
