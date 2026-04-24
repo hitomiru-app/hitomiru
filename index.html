@@ -3,132 +3,183 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>ヒトミル｜コーチ管理画面</title>
+<title>ヒトミル｜コーチ管理画面 v3</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   body { font-family: 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif; background: #FFF9E6; }
   .scroll-hide::-webkit-scrollbar { display: none; }
   @keyframes slidein { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .toast-anim { animation: slidein 0.3s ease-out; }
   .pulse { animation: pulse 2s infinite; }
   .badge-new { animation: slidein 0.4s ease-out; }
+  .spinner { animation: spin 0.8s linear infinite; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-const STORAGE_KEY = 'hitomiru_v2_clients';
+// ===== Supabase設定 =====
+const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const SB_URL = "https://qqgawirefsxcgrsdskpq.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U";
-const H = { "Content-Type":"application/json","apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY };
+// ===== Supabase テーブル操作 =====
+// テーブル: clients
+// id (uuid), name, line_display_name, type, target_exam, target_date,
+// agreement_study_time, agreement_daily_task, agreement_duration, agreement_rules,
+// created_at
 
-async function sb(method, table, body, query="") {
-  try {
-    const res = await fetch(`${SB_URL}/rest/v1/${table}${query}`, {
-      method, headers:{...H,
-        ...(method==="GET"?{"Accept":"application/json"}:{}),
-        ...(method==="POST"?{"Prefer":"return=representation"}:{}),
-        ...(method==="PATCH"?{"Prefer":"return=representation"}:{})},
-      body: body?JSON.stringify(body):undefined,
-    });
-    const data = res.status===204?null:await res.json();
-    return data;
-  } catch(e) { console.error(e); throw e; }
+// テーブル: daily_logs
+// id (uuid), client_id (fk), date (date), task, start_time, end_time,
+// status, started_at, completed_at, created_at, updated_at
+
+// テーブル: events
+// id (uuid), client_id (fk), date (date), type, message, is_new, created_at
+
+async function fetchClients() {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
 }
 
-async function sendLineMessage(lineUserId, message) {
-  try {
-    const res = await fetch(`${SB_URL}/functions/v1/send-line-message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + SB_KEY },
-      body: JSON.stringify({ to: lineUserId, messages: [{ type: "text", text: message }] })
-    });
-    return await res.json();
-  } catch(e) {
-    console.error("LINE送信エラー:", e);
-    throw e;
-  }
+async function fetchTodayLogs(date) {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('date', date);
+  if (error) throw error;
+  return data;
 }
 
+async function fetchTodayEvents(date) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('date', date)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+}
 
-// ===== モックデータ =====
+async function upsertDailyLog(log) {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .upsert(log, { onConflict: 'client_id,date' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
 
+async function insertEvent(event) {
+  const { data, error } = await supabase
+    .from('events')
+    .insert(event)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function markEventsRead(clientId, date) {
+  const { error } = await supabase
+    .from('events')
+    .update({ is_new: false })
+    .eq('client_id', clientId)
+    .eq('date', date);
+  if (error) throw error;
+}
+
+async function markAllEventsRead(date) {
+  const { error } = await supabase
+    .from('events')
+    .update({ is_new: false })
+    .eq('date', date);
+  if (error) throw error;
+}
+
+async function addClient(client) {
+  const { data, error } = await supabase
+    .from('clients')
+    .insert(client)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function deleteClient(id) {
+  const { error } = await supabase.from('clients').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ===== データ統合 =====
+function mergeClientData(clients, logs, events) {
+  const today = getTodayStr();
+  return clients.map(c => {
+    const log = logs.find(l => l.client_id === c.id) || {
+      client_id: c.id,
+      date: today,
+      task: '（未設定）',
+      start_time: '21:00',
+      end_time: '22:00',
+      status: 'not_started',
+      started_at: null,
+      completed_at: null,
+    };
+    const clientEvents = events.filter(e => e.client_id === c.id);
+    return {
+      id: c.id,
+      name: c.name,
+      lineDisplayName: c.line_display_name,
+      type: c.type,
+      targetExam: c.target_exam,
+      targetDate: c.target_date,
+      agreement: {
+        studyTime: c.agreement_study_time,
+        dailyTask: c.agreement_daily_task,
+        duration: c.agreement_duration,
+        rules: c.agreement_rules,
+      },
+      today: {
+        logId: log.id,
+        task: log.task,
+        startTime: log.start_time,
+        endTime: log.end_time,
+        status: log.status,
+        startedAt: log.started_at,
+        completedAt: log.completed_at,
+        events: clientEvents.map(e => ({
+          id: e.id,
+          type: e.type,
+          message: e.message,
+          isNew: e.is_new,
+          time: e.created_at,
+        })),
+      },
+    };
+  });
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 // ===== ユーティリティ =====
-
-// ===== ユーティリティ =====
-async function loadClientsFromSupabase() {
-  try {
-    const clientsData = await sb("GET", "clients", "", "?order=id");
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tasksData = await sb("GET", "tasks", "", `?date=eq.${todayStr}`);
-    
-    if (!clientsData) return [];
-    
-    return clientsData.map(c => {
-      const clientTasks = tasksData ? tasksData.filter(t => t.client_id === c.id) : [];
-      const todayTask = clientTasks.length > 0 ? clientTasks[0] : null;
-      
-      let status = 'not_started';
-      if (todayTask) {
-        if (todayTask.done) status = 'completed';
-        else if (todayTask.started) status = 'in_progress';
-        else {
-          // Check if overtime
-          if (todayTask.start_time) {
-            const [h, m] = todayTask.start_time.split(':').map(Number);
-            const now = new Date();
-            const t = new Date();
-            t.setHours(h, m, 0, 0);
-            if (now > t) status = 'overtime';
-          }
-        }
-      }
-      
-      return {
-        id: c.id,
-        name: c.name,
-        lineDisplayName: c.name, // Fallback
-        line_user_id: c.line_user_id,
-        type: 'variable', // Default
-        targetExam: '設定なし',
-        targetDate: '',
-        agreement: {
-          studyTime: '未設定',
-          dailyTask: '未設定',
-          duration: '未設定',
-          rules: '未設定',
-        },
-        today: {
-          task: todayTask ? todayTask.title : 'タスクなし',
-          startTime: todayTask ? todayTask.start_time : '',
-          endTime: todayTask ? todayTask.time : '',
-          status: status,
-          startedAt: todayTask && todayTask.started ? todayTask.start_time : null,
-          completedAt: todayTask && todayTask.done ? todayTask.time : null,
-          events: [],
-        },
-      };
-    });
-  } catch (e) {
-    console.error("Supabase読み込みエラー:", e);
-    return [];
-  }
-}
-
-function loadClients() {
-  return []; // Initial empty state
-}
-function saveClients(c) { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)); }
-
 function formatDate(d) {
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   const days = ['日','月','火','水','木','金','土'];
@@ -149,24 +200,10 @@ function minutesSince(timeStr) {
   return Math.floor((now - t) / 60000);
 }
 
-// ===== LINE送信（URLスキーム） =====
-
-// ===== LINE送信（URLスキーム & Supabase） =====
-async function openLineWithMessage(message, client) {
-  if (client && client.line_user_id) {
-    // Supabase経由で直接送信
-    try {
-      await sendLineMessage(client.line_user_id, message);
-      return true; // 送信成功
-    } catch (e) {
-      console.error(e);
-      // 失敗時はフォールバック
-    }
-  }
-  // フォールバック：URLスキーム
+// ===== LINE送信 =====
+function openLineWithMessage(message) {
   const url = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
   window.open(url, '_blank');
-  return false;
 }
 
 // ===== メッセージテンプレート =====
@@ -213,9 +250,8 @@ function pickRandom(arr) {
 }
 
 function renderTemplate(template, client) {
-  const time = client.today.startTime || '';
-  const hour = time ? time.split(':')[0] : '';
-  return template.replace(/〇〇/g, client.name).replace(/〇時/g, hour + '時');
+  const time = client.today.startTime;
+  return template.replace(/〇〇/g, client.name).replace(/〇時/g, `${time.split(':')[0]}時`);
 }
 
 function getPushTemplate(client) {
@@ -238,13 +274,95 @@ function Toast({ message, type, onClose }) {
   );
 }
 
+// ===== ローディング =====
+function Spinner() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center space-y-4">
+        <div className="w-10 h-10 border-4 border-[#FFB800] border-t-transparent rounded-full spinner mx-auto"></div>
+        <p className="text-sm text-gray-500">Supabaseに接続中...</p>
+      </div>
+    </div>
+  );
+}
+
+// ===== エラー =====
+function ErrorBanner({ error, onRetry }) {
+  return (
+    <div className="m-6 bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
+      <div className="font-semibold text-red-700">⚠️ Supabase接続エラー</div>
+      <p className="text-sm text-red-600">{error}</p>
+      <div className="text-xs text-red-500 bg-red-100 rounded-xl p-3 space-y-1">
+        <div className="font-semibold">必要なテーブル構成：</div>
+        <div>• <code>clients</code> — クライアント情報</div>
+        <div>• <code>daily_logs</code> — 日次タスクログ</div>
+        <div>• <code>events</code> — 通知イベント</div>
+        <div className="mt-2 font-semibold">SQLは下のボタンでコピーできます👇</div>
+      </div>
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={onRetry} className="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">再試行</button>
+        <button onClick={() => {
+          const sql = `-- ヒトミル Supabase テーブル作成SQL
+
+create table clients (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  line_display_name text,
+  type text not null default 'fixed',
+  target_exam text,
+  target_date date,
+  agreement_study_time text,
+  agreement_daily_task text,
+  agreement_duration text,
+  agreement_rules text,
+  created_at timestamptz default now()
+);
+
+create table daily_logs (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references clients(id) on delete cascade,
+  date date not null,
+  task text,
+  start_time text,
+  end_time text,
+  status text not null default 'not_started',
+  started_at text,
+  completed_at text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(client_id, date)
+);
+
+create table events (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid references clients(id) on delete cascade,
+  date date not null,
+  type text not null,
+  message text,
+  is_new boolean default true,
+  created_at timestamptz default now()
+);
+
+-- RLS（Row Level Security）を無効化（開発用）
+alter table clients disable row level security;
+alter table daily_logs disable row level security;
+alter table events disable row level security;`;
+          navigator.clipboard.writeText(sql).then(() => alert('SQLをコピーしました！\nSupabase → SQL Editor に貼り付けて実行してください'));
+        }} className="bg-white border border-red-300 text-red-700 text-sm font-semibold px-4 py-2 rounded-xl">
+          📋 テーブル作成SQLをコピー
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ===== Sidebar =====
 function Sidebar({ page, setPage, newCount }) {
   const items = [
     { key: 'inbox', label: '通知', icon: '🔔', badge: newCount },
     { key: 'dashboard', label: 'ダッシュボード', icon: '◉' },
     { key: 'clients', label: 'クライアント', icon: '👥' },
-    
+    { key: 'simulator', label: 'ユーザー操作', icon: '📱' },
   ];
   return (
     <>
@@ -255,6 +373,10 @@ function Sidebar({ page, setPage, newCount }) {
             <div className="text-lg font-bold text-gray-900">ヒトミル</div>
           </div>
           <p className="text-xs text-gray-500 mt-2">人が見る、<br />だから続けられる</p>
+          <div className="mt-3 inline-flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+            <span className="w-1.5 h-1.5 bg-green-500 rounded-full pulse"></span>
+            Supabase接続中
+          </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
           {items.map(item => (
@@ -341,8 +463,8 @@ function ReplyModal({ client, defaultCategory, onSend, onClose }) {
   }, [category, variantIndex]);
 
   const shuffle = () => setVariantIndex(v => v + 1);
-
   if (!client) return null;
+
   const categories = [
     { key: 'praise_start', label: '開始を褒める', color: 'bg-green-100 text-green-700' },
     { key: 'praise_complete', label: '完了を褒める', color: 'bg-green-100 text-green-700' },
@@ -375,44 +497,59 @@ function ReplyModal({ client, defaultCategory, onSend, onClose }) {
             <div className="text-xs font-semibold text-gray-600">メッセージ</div>
             <button onClick={shuffle} className="text-xs text-[#8B6914] hover:text-[#FFB800] font-semibold">🎲 別のパターン</button>
           </div>
-          <textarea
-            value={message}
-            onChange={e => setMessage(e.target.value)}
-            rows="4"
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm"
-          />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows="4" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
         </div>
         <div className="flex gap-2 pt-2">
-          <button onClick={() => onSend(message, client)} className="flex-1 bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2.5 rounded-xl">LINEを開いて送信</button>
+          <button onClick={() => onSend(message)} className="flex-1 bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2.5 rounded-xl">LINEを開いて送信</button>
           <button onClick={onClose} className="bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-5 py-2.5 rounded-xl">キャンセル</button>
         </div>
-        <p className="text-xs text-gray-500">※LINEアプリが開きます。送信先をクライアントに選んで送ってください。</p>
       </div>
     </div>
   );
 }
 
-// ===== 通知画面（コーチのインボックス） =====
-function Inbox({ clients, onReply, onOpenAgreement, markAllRead }) {
-  const events = useMemo(() => {
-    const list = [];
-    clients.forEach(c => {
-      c.today.events.forEach(e => list.push({ ...e, client: c }));
-    });
-    list.sort((a, b) => new Date(b.time) - new Date(a.time));
-    return list;
-  }, [clients]);
+// ===== 通知Inbox =====
+function Inbox({ clients, onReply, onOpenAgreement, onMarkAllRead }) {
+  const allEvents = clients.flatMap(c => c.today.events.map(e => ({ ...e, client: c })));
+  const newEvents = allEvents.filter(e => e.isNew).sort((a,b) => new Date(b.time) - new Date(a.time));
+  const oldEvents = allEvents.filter(e => !e.isNew).sort((a,b) => new Date(b.time) - new Date(a.time));
 
-  const newEvents = events.filter(e => e.isNew);
+  const eventMeta = (type) => {
+    const map = {
+      user_started: { icon: '🔥', label: '開始しました', color: 'bg-blue-50 border-blue-100', suggest: 'praise_start' },
+      user_completed: { icon: '🏁', label: '完了しました', color: 'bg-green-50 border-green-100', suggest: 'praise_complete' },
+      user_sos: { icon: '🆘', label: 'SOSを送信', color: 'bg-purple-50 border-purple-100', suggest: 'sos_reply' },
+      overtime_detected: { icon: '⏰', label: '時間切れ', color: 'bg-red-50 border-red-100', suggest: 'push_first' },
+    };
+    return map[type] || { icon: '📌', label: type, color: 'bg-gray-50 border-gray-100', suggest: 'pre_reminder' };
+  };
 
-  const getEventMeta = (type) => {
-    switch (type) {
-      case 'user_started': return { icon: '🔥', label: '開始', color: 'bg-blue-50 border-blue-200', suggest: 'praise_start' };
-      case 'user_completed': return { icon: '🏁', label: '完了', color: 'bg-green-50 border-green-200', suggest: 'praise_complete' };
-      case 'user_sos': return { icon: '🆘', label: 'SOS', color: 'bg-purple-50 border-purple-200', suggest: 'sos_reply' };
-      case 'overtime_detected': return { icon: '⏰', label: '時間切れ', color: 'bg-red-50 border-red-200', suggest: 'push_first' };
-      default: return { icon: '📬', label: 'イベント', color: 'bg-gray-50 border-gray-200', suggest: 'praise_start' };
-    }
+  const renderEvent = (e, isNew) => {
+    const meta = eventMeta(e.type);
+    return (
+      <div key={e.id} className={`border rounded-2xl p-4 ${meta.color} ${isNew ? 'badge-new' : ''}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-base">{meta.icon}</span>
+              <span className="font-semibold text-gray-900 text-sm">{e.client.name}さん</span>
+              <span className="text-xs text-gray-500">{meta.label}</span>
+              {isNew && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full badge-new">NEW</span>}
+            </div>
+            <p className="text-xs text-gray-600 mt-1">{e.message}</p>
+            <p className="text-xs text-gray-400 mt-1">{formatTime(e.time)}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2 flex-wrap">
+          <button onClick={() => onReply(e.client, meta.suggest)} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-xs font-semibold px-4 py-2 rounded-lg">
+            💬 ワンタップ返信
+          </button>
+          <button onClick={() => onOpenAgreement(e.client)} className="bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-gray-50">
+            📝 絶対契約を見る
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -420,50 +557,28 @@ function Inbox({ clients, onReply, onOpenAgreement, markAllRead }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">🔔 通知</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{newEvents.length}件の未対応</p>
+          <p className="text-sm text-gray-500 mt-1">未読 {newEvents.length}件</p>
         </div>
         {newEvents.length > 0 && (
-          <button onClick={markAllRead} className="text-xs text-gray-500 hover:text-gray-700">すべて既読</button>
+          <button onClick={onMarkAllRead} className="text-xs text-[#8B6914] hover:text-[#FFB800] font-semibold">すべて既読</button>
         )}
       </div>
-
-      {events.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-          <div className="text-4xl mb-2">📭</div>
-          <p className="text-sm text-gray-500">まだ通知がありません</p>
-          <p className="text-xs text-gray-400 mt-1">「ユーザー操作」からテストできます</p>
+      {newEvents.length === 0 && oldEvents.length === 0 && (
+        <div className="text-center py-12 text-gray-400">
+          <div className="text-4xl mb-2">🎉</div>
+          <p className="text-sm">新しい通知はありません</p>
         </div>
-      ) : (
+      )}
+      {newEvents.length > 0 && (
         <div className="space-y-3">
-          {events.map((e, i) => {
-            const meta = getEventMeta(e.type);
-            return (
-              <div key={i} className={`${meta.color} border rounded-2xl p-4 ${e.isNew ? 'badge-new' : ''}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="text-2xl flex-shrink-0">{meta.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-900">{e.client.name}さん</span>
-                        <span className="text-xs bg-white text-gray-600 font-medium px-2 py-0.5 rounded-md">{meta.label}</span>
-                        {e.isNew && <span className="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-md pulse">NEW</span>}
-                      </div>
-                      <p className="text-sm text-gray-700 mt-1">{e.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatTime(e.time)}・タスク：{e.client.today.task}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2 flex-wrap">
-                  <button onClick={() => onReply(e.client, meta.suggest)} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                    💬 ワンタップ返信
-                  </button>
-                  <button onClick={() => onOpenAgreement(e.client)} className="bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-gray-50">
-                    📝 絶対契約を見る
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">未読</div>
+          {newEvents.map(e => renderEvent(e, true))}
+        </div>
+      )}
+      {oldEvents.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">既読</div>
+          {oldEvents.map(e => renderEvent(e, false))}
         </div>
       )}
     </div>
@@ -485,7 +600,6 @@ function Dashboard({ clients, onReply, onOpenAgreement }) {
         <div className="text-xs text-gray-500 font-semibold tracking-wide">{formatDate(today)}</div>
         <h1 className="text-2xl font-bold text-gray-900 mt-1">今日の状況</h1>
       </div>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-2xl p-4 border border-gray-100">
           <div className="text-xs text-gray-600 font-medium">担当者数</div>
@@ -504,11 +618,8 @@ function Dashboard({ clients, onReply, onOpenAgreement }) {
           <div className="text-2xl font-bold text-green-600 mt-1">{completed} <span className="text-sm text-gray-500 font-medium">/ {rate}%</span></div>
         </div>
       </div>
-
       <div className="space-y-3">
-        {clients.map(c => (
-          <ClientRow key={c.id} client={c} onReply={onReply} onOpenAgreement={onOpenAgreement} />
-        ))}
+        {clients.map(c => <ClientRow key={c.id} client={c} onReply={onReply} onOpenAgreement={onOpenAgreement} />)}
       </div>
     </div>
   );
@@ -523,15 +634,13 @@ function ClientRow({ client, onReply, onOpenAgreement }) {
     completed: { label: '完了', cls: 'bg-green-100 text-green-700' },
   }[t.status] || { label: '未設定', cls: 'bg-gray-100 text-gray-700' };
 
-  const typeLabel = client.type === 'fixed' ? '固定制' : '変動制';
-
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-gray-900">{client.name}さん</span>
-            <span className="text-xs bg-[#FFF3C4] text-[#8B6914] font-medium px-2 py-0.5 rounded-md">{typeLabel}</span>
+            <span className="text-xs bg-[#FFF3C4] text-[#8B6914] font-medium px-2 py-0.5 rounded-md">{client.type === 'fixed' ? '固定制' : '変動制'}</span>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusConfig.cls}`}>{statusConfig.label}</span>
           </div>
           <div className="text-sm text-gray-700 mt-1.5">{t.task}</div>
@@ -542,8 +651,7 @@ function ClientRow({ client, onReply, onOpenAgreement }) {
         <button onClick={() => {
           const suggest = t.status === 'completed' ? 'praise_complete' :
                           t.status === 'in_progress' ? 'praise_start' :
-                          t.status === 'overtime' ? getPushTemplate(client).category :
-                          'pre_reminder';
+                          t.status === 'overtime' ? getPushTemplate(client).category : 'pre_reminder';
           onReply(client, suggest);
         }} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-xs font-semibold px-4 py-2 rounded-lg">
           💬 返信
@@ -556,14 +664,64 @@ function ClientRow({ client, onReply, onOpenAgreement }) {
   );
 }
 
+// ===== タスク編集モーダル =====
+function TaskEditModal({ client, onSave, onClose }) {
+  const [form, setForm] = useState({
+    task: client.today.task || '',
+    startTime: client.today.startTime || '21:00',
+    endTime: client.today.endTime || '22:00',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(client.id, form);
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">📅 今日のタスク設定</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">今日のタスク</label>
+            <input value={form.task} onChange={e => setForm({...form, task: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" placeholder="テキスト p.1-15" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">開始時刻</label>
+              <input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">終了時刻</label>
+              <input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving} className="flex-1 bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2.5 rounded-xl disabled:opacity-50">
+            {saving ? '保存中...' : '保存'}
+          </button>
+          <button onClick={onClose} className="bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-5 py-2.5 rounded-xl">キャンセル</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== クライアント一覧 =====
-function ClientsPage({ clients, onAdd, onDelete, onOpenAgreement }) {
+function ClientsPage({ clients, onAdd, onDelete, onOpenAgreement, onEditTask }) {
   const [showForm, setShowForm] = useState(false);
+  const [taskEditClient, setTaskEditClient] = useState(null);
 
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold text-gray-900">👥 クライアント</h1>
-
       <div className="space-y-3">
         {clients.map(c => (
           <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4">
@@ -575,9 +733,13 @@ function ClientsPage({ clients, onAdd, onDelete, onOpenAgreement }) {
                 </div>
                 <div className="text-sm text-gray-700 mt-1">🎯 {c.targetExam}（{c.targetDate}）</div>
                 <div className="text-xs text-gray-500 mt-1">⏰ {c.agreement.studyTime}</div>
+                <div className="text-xs text-gray-500 mt-0.5">📅 今日: {c.today.task}（{c.today.startTime}）</div>
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+              <button onClick={() => setTaskEditClient(c)} className="bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-100">
+                📅 今日のタスク
+              </button>
               <button onClick={() => onOpenAgreement(c)} className="bg-white border border-gray-200 text-gray-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-gray-50">
                 📝 契約詳細
               </button>
@@ -588,7 +750,6 @@ function ClientsPage({ clients, onAdd, onDelete, onOpenAgreement }) {
           </div>
         ))}
       </div>
-
       {showForm ? (
         <AddClientForm onAdd={(c) => { onAdd(c); setShowForm(false); }} onCancel={() => setShowForm(false)} />
       ) : (
@@ -596,6 +757,22 @@ function ClientsPage({ clients, onAdd, onDelete, onOpenAgreement }) {
           + クライアントを追加
         </button>
       )}
+      {taskEditClient && (
+        <TaskEditModal
+          client={taskEditClient}
+          onSave={onEditTask}
+          onClose={() => setTaskEditClient(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text' }) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-600 mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
     </div>
   );
 }
@@ -607,25 +784,13 @@ function AddClientForm({ onAdd, onCancel }) {
     studyTime: '', dailyTask: '', duration: '', rules: '時間厳守。1分でも遅れたら追撃あり。',
     task: '', startTime: '21:00', endTime: '22:00',
   });
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name || !form.targetExam) { alert('名前と目標は必須です'); return; }
-    onAdd({
-      id: `c${Date.now()}`,
-      name: form.name,
-      lineDisplayName: form.lineDisplayName || form.name,
-      type: form.type,
-      targetExam: form.targetExam,
-      targetDate: form.targetDate,
-      agreement: { studyTime: form.studyTime, dailyTask: form.dailyTask, duration: form.duration, rules: form.rules },
-      today: {
-        task: form.task || '（未設定）',
-        startTime: form.startTime,
-        endTime: form.endTime,
-        status: 'not_started',
-        startedAt: null, completedAt: null, events: [],
-      },
-    });
+    setSaving(true);
+    await onAdd(form);
+    setSaving(false);
   };
 
   return (
@@ -653,140 +818,299 @@ function AddClientForm({ onAdd, onCancel }) {
         </div>
       </div>
       <div className="flex gap-2 pt-2">
-        <button onClick={handleSubmit} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2 rounded-xl">追加</button>
+        <button onClick={handleSubmit} disabled={saving} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2 rounded-xl disabled:opacity-50">
+          {saving ? '保存中...' : '追加'}
+        </button>
         <button onClick={onCancel} className="bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-5 py-2 rounded-xl">キャンセル</button>
       </div>
     </div>
   );
 }
 
-function Field({ label, value, onChange, placeholder, type = 'text' }) {
+// ===== シミュレーター =====
+function Simulator({ clients, onUserAction, onForceOvertime }) {
   return (
-    <div>
-      <label className="block text-xs text-gray-600 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">📱 ユーザー操作</h1>
+        <p className="text-sm text-gray-500 mt-1">ユーザー側のリッチメニュー操作をシミュレーション。イベントはSupabaseに保存されます。</p>
+      </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
+        <div className="font-semibold mb-1">💡 使い方</div>
+        <p className="text-xs leading-relaxed">ユーザーがLINEのリッチメニューボタンを押したと想定して、ここからイベントを発生させてください。通知画面に「NEW」バッジ付きで表示されます。</p>
+      </div>
+      <div className="space-y-3">
+        {clients.map(c => (
+          <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div className="mb-3">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900">{c.name}さん</span>
+                <span className="text-xs bg-[#FFF3C4] text-[#8B6914] font-medium px-2 py-0.5 rounded-md">{c.type === 'fixed' ? '固定制' : '変動制'}</span>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">{c.today.task}・{c.today.startTime}</div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <SimButton icon="🔥" label="開始する" color="bg-blue-500 hover:bg-blue-600" onClick={() => onUserAction(c.id, 'user_started')} />
+              <SimButton icon="🏁" label="完了する" color="bg-green-500 hover:bg-green-600" onClick={() => onUserAction(c.id, 'user_completed')} />
+              <SimButton icon="🆘" label="SOS" color="bg-purple-500 hover:bg-purple-600" onClick={() => onUserAction(c.id, 'user_sos')} />
+              <SimButton icon="⏰" label="時間切れ" color="bg-red-500 hover:bg-red-600" onClick={() => onForceOvertime(c.id)} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ===== ユーザー操作シミュレーター =====
+function SimButton({ icon, label, color, onClick }) {
+  return (
+    <button onClick={onClick} className={`${color} text-white text-xs font-semibold px-3 py-2.5 rounded-xl flex items-center justify-center gap-1.5`}>
+      <span>{icon}</span><span>{label}</span>
+    </button>
+  );
+}
+
 // ===== メインアプリ =====
 function App() {
   const [page, setPage] = useState('inbox');
-  
   const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    loadClientsFromSupabase().then(data => {
-      setClients(data);
-      setLoading(false);
-    });
-  }, []);
-
   const [toast, setToast] = useState(null);
   const [agreementClient, setAgreementClient] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => { saveClients(clients); }, [clients]);
+  const showToast = (message, type = 'success') => setToast({ message, type });
+
+  // ===== データロード =====
+  const loadData = useCallback(async () => {
+    setError(null);
+    try {
+      const today = getTodayStr();
+      const [rawClients, logs, events] = await Promise.all([
+        fetchClients(),
+        fetchTodayLogs(today),
+        fetchTodayEvents(today),
+      ]);
+      setClients(mergeClientData(rawClients, logs, events));
+    } catch (e) {
+      console.error(e);
+      setError(e.message || 'データの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ===== リアルタイム購読 =====
+  useEffect(() => {
+    const today = getTodayStr();
+    const channel = supabase
+      .channel('realtime-hitomiru')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `date=eq.${today}` }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs', filter: `date=eq.${today}` }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        loadData();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [loadData]);
 
   const newCount = useMemo(() => clients.reduce((s, c) => s + c.today.events.filter(e => e.isNew).length, 0), [clients]);
 
-  const addEvent = (clientId, event) => {
-    setClients(prev => prev.map(c => {
-      if (c.id !== clientId) return c;
-      return {
-        ...c,
-        today: { ...c.today, events: [...c.today.events, { ...event, isNew: true, time: new Date().toISOString() }] },
-      };
-    }));
-  };
+  // ===== アクション =====
+  const handleUserAction = async (clientId, type) => {
+    const today = getTodayStr();
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 
-  const handleUserAction = (clientId, type) => {
-    setClients(prev => prev.map(c => {
-      if (c.id !== clientId) return c;
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-      let updated = { ...c.today };
-      let event = { type, isNew: true, time: now.toISOString() };
+    const messages = {
+      user_started: 'ユーザーが「開始しました」を送信',
+      user_completed: 'ユーザーが「完了しました」を送信',
+      user_sos: 'ユーザーが「SOS」を送信',
+    };
+
+    try {
+      // daily_logを更新
+      const client = clients.find(c => c.id === clientId);
+      if (!client) return;
+
+      let logUpdate = {
+        client_id: clientId,
+        date: today,
+        task: client.today.task,
+        start_time: client.today.startTime,
+        end_time: client.today.endTime,
+        status: client.today.status,
+        started_at: client.today.startedAt,
+        completed_at: client.today.completedAt,
+        updated_at: new Date().toISOString(),
+      };
+
       if (type === 'user_started') {
-        updated.status = 'in_progress';
-        updated.startedAt = timeStr;
-        event.message = 'ユーザーが「開始しました」を送信';
+        logUpdate.status = 'in_progress';
+        logUpdate.started_at = timeStr;
       } else if (type === 'user_completed') {
-        updated.status = 'completed';
-        updated.completedAt = timeStr;
-        event.message = 'ユーザーが「完了しました」を送信';
-      } else if (type === 'user_sos') {
-        event.message = 'ユーザーが「SOS」を送信';
+        logUpdate.status = 'completed';
+        logUpdate.completed_at = timeStr;
       }
-      updated.events = [...updated.events, event];
-      return { ...c, today: updated };
-    }));
-    setToast({ message: '新しい通知が届きました', type: 'info' });
+
+      await upsertDailyLog(logUpdate);
+      await insertEvent({
+        client_id: clientId,
+        date: today,
+        type,
+        message: messages[type],
+        is_new: true,
+      });
+
+      showToast('新しい通知が届きました', 'info');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
   };
 
-  const forceOvertime = (clientId) => {
-    setClients(prev => prev.map(c => {
-      if (c.id !== clientId) return c;
-      return {
-        ...c,
-        today: {
-          ...c.today,
-          status: 'overtime',
-          events: [...c.today.events, { type: 'overtime_detected', message: '着手時刻を過ぎました', isNew: true, time: new Date().toISOString() }],
-        },
-      };
-    }));
-    setToast({ message: '時間切れを検知しました', type: 'info' });
+  const forceOvertime = async (clientId) => {
+    const today = getTodayStr();
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    try {
+      await upsertDailyLog({
+        client_id: clientId,
+        date: today,
+        task: client.today.task,
+        start_time: client.today.startTime,
+        end_time: client.today.endTime,
+        status: 'overtime',
+        started_at: client.today.startedAt,
+        completed_at: client.today.completedAt,
+        updated_at: new Date().toISOString(),
+      });
+      await insertEvent({
+        client_id: clientId,
+        date: today,
+        type: 'overtime_detected',
+        message: '着手時刻を過ぎました',
+        is_new: true,
+      });
+      showToast('時間切れを記録しました', 'info');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
   };
 
-  const handleReply = (client, defaultCategory) => {
-    setReplyTarget({ client, defaultCategory });
-  };
+  const handleReply = (client, defaultCategory) => setReplyTarget({ client, defaultCategory });
 
-  const handleSend = (message) => {
+  const handleSend = async (message) => {
     if (!replyTarget) return;
     const { client } = replyTarget;
+    const today = getTodayStr();
     openLineWithMessage(message);
-    setClients(prev => prev.map(c => {
-      if (c.id !== client.id) return c;
-      return {
-        ...c,
-        today: {
-          ...c.today,
-          events: c.today.events.map(e => ({ ...e, isNew: false })),
-        },
-      };
-    }));
+    try {
+      await markEventsRead(client.id, today);
+      showToast(`${client.name}さんのLINEを開きました`, 'success');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
     setReplyTarget(null);
-    setToast({ message: `${client.name}さんのLINEを開きました`, type: 'success' });
   };
 
-  const markAllRead = () => {
-    setClients(prev => prev.map(c => ({
-      ...c,
-      today: { ...c.today, events: c.today.events.map(e => ({ ...e, isNew: false })) },
-    })));
+  const handleMarkAllRead = async () => {
+    const today = getTodayStr();
+    try {
+      await markAllEventsRead(today);
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
   };
 
-  const handleAdd = (client) => {
-    setClients(prev => [...prev, client]);
-    setToast({ message: 'クライアントを追加しました', type: 'success' });
+  const handleAdd = async (form) => {
+    try {
+      const newClient = await addClient({
+        name: form.name,
+        line_display_name: form.lineDisplayName || form.name,
+        type: form.type,
+        target_exam: form.targetExam,
+        target_date: form.targetDate || null,
+        agreement_study_time: form.studyTime,
+        agreement_daily_task: form.dailyTask,
+        agreement_duration: form.duration,
+        agreement_rules: form.rules,
+      });
+
+      // 今日のログも作成
+      if (form.task) {
+        await upsertDailyLog({
+          client_id: newClient.id,
+          date: getTodayStr(),
+          task: form.task,
+          start_time: form.startTime,
+          end_time: form.endTime,
+          status: 'not_started',
+          started_at: null,
+          completed_at: null,
+        });
+      }
+
+      showToast('クライアントを追加しました', 'success');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
   };
 
-  const handleDelete = (id) => {
-    setClients(prev => prev.filter(c => c.id !== id));
-    setToast({ message: 'クライアントを削除しました', type: 'success' });
+  const handleDelete = async (id) => {
+    try {
+      await deleteClient(id);
+      showToast('クライアントを削除しました', 'success');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
   };
+
+  const handleEditTask = async (clientId, form) => {
+    const today = getTodayStr();
+    const client = clients.find(c => c.id === clientId);
+    try {
+      await upsertDailyLog({
+        client_id: clientId,
+        date: today,
+        task: form.task,
+        start_time: form.startTime,
+        end_time: form.endTime,
+        status: client.today.status,
+        started_at: client.today.startedAt,
+        completed_at: client.today.completedAt,
+        updated_at: new Date().toISOString(),
+      });
+      showToast('タスクを保存しました', 'success');
+      await loadData();
+    } catch (e) {
+      showToast('エラー: ' + e.message, 'error');
+    }
+  };
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorBanner error={error} onRetry={loadData} />;
 
   return (
     <div className="min-h-screen flex bg-[#FFF9E6]">
       <Sidebar page={page} setPage={setPage} newCount={newCount} />
       <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 max-w-5xl mx-auto w-full">
-        {page === 'inbox' && <Inbox clients={clients} onReply={handleReply} onOpenAgreement={setAgreementClient} markAllRead={markAllRead} />}
+        {page === 'inbox' && <Inbox clients={clients} onReply={handleReply} onOpenAgreement={setAgreementClient} onMarkAllRead={handleMarkAllRead} />}
         {page === 'dashboard' && <Dashboard clients={clients} onReply={handleReply} onOpenAgreement={setAgreementClient} />}
-        {page === 'clients' && <ClientsPage clients={clients} onAdd={handleAdd} onDelete={handleDelete} onOpenAgreement={setAgreementClient} />}
+        {page === 'clients' && <ClientsPage clients={clients} onAdd={handleAdd} onDelete={handleDelete} onOpenAgreement={setAgreementClient} onEditTask={handleEditTask} />}
         {page === 'simulator' && <Simulator clients={clients} onUserAction={handleUserAction} onForceOvertime={forceOvertime} />}
       </main>
 
