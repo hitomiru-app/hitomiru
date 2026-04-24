@@ -212,10 +212,26 @@ function minutesSince(timeStr) {
   return Math.floor((now - t) / 60000);
 }
 
-// ===== LINE送信 =====
-function openLineWithMessage(message) {
-  const url = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
-  window.open(url, '_blank');
+// ===== LINE送信（既存Edge Function経由） =====
+// send-line-message は { lineUserId, message } を受け取る
+async function sendLineMessage(lineUserId, message) {
+  if (!lineUserId) {
+    throw new Error('LINE User IDが未登録です。クライアント設定を確認してください');
+  }
+  const res = await fetch(
+    `${SUPABASE_URL}/functions/v1/send-line-message`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ lineUserId, message }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'LINE送信失敗');
+  return data;
 }
 
 // ===== メッセージテンプレート =====
@@ -481,7 +497,7 @@ function ReplyModal({ client, defaultCategory, onSend, onClose }) {
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows="4" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
         </div>
         <div className="flex gap-2 pt-2">
-          <button onClick={() => onSend(message)} className="flex-1 bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2.5 rounded-xl">LINEを開いて送信</button>
+          <button onClick={() => onSend(message)} className="flex-1 bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2.5 rounded-xl">📤 送信する</button>
           <button onClick={onClose} className="bg-white border border-gray-200 text-gray-600 text-sm font-semibold px-5 py-2.5 rounded-xl">キャンセル</button>
         </div>
       </div>
@@ -994,13 +1010,15 @@ function App() {
     if (!replyTarget) return;
     const { client } = replyTarget;
     const today = getTodayStr();
-    openLineWithMessage(message);
+    // LINE User IDはtoken or line_user_idから取得
+    const lineUserId = client.token || client.lineUserId; // clientsテーブルのtokenがLINE User ID
     try {
+      await sendLineMessage(lineUserId, message);
       await markEventsRead(client.id, today);
-      showToast(`${client.name}さんのLINEを開きました`, 'success');
+      showToast(`${client.name}さんにLINEを送信しました ✅`, 'success');
       await loadData();
     } catch (e) {
-      showToast('エラー: ' + e.message, 'error');
+      showToast('送信エラー: ' + e.message, 'error');
     }
     setReplyTarget(null);
   };
