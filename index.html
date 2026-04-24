@@ -776,7 +776,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }) {
 
 function AddClientForm({ onAdd, onCancel }) {
   const [form, setForm] = useState({
-    name: '', lineUserId: '', token: '', color: '#FFB800', type: 'fixed',
+    name: '', lineUserId: '', color: '#FFB800', type: 'fixed',
     targetExam: '', targetDate: '',
     studyTime: '', dailyTask: '', duration: '', rules: '時間厳守。1分でも遅れたら追撃あり。',
     task: '', startTime: '21:00', endTime: '22:00',
@@ -808,11 +808,7 @@ function AddClientForm({ onAdd, onCancel }) {
         <Field label="プログラム期間" value={form.duration} onChange={v => setForm({...form, duration: v})} placeholder="3ヶ月" />
         <Field label="学習時間（契約）" value={form.studyTime} onChange={v => setForm({...form, studyTime: v})} placeholder="毎日21:00〜22:00" />
         <Field label="日々のタスク（契約）" value={form.dailyTask} onChange={v => setForm({...form, dailyTask: v})} placeholder="1日1時間・テキスト2ページ" />
-        <Field label="今日のタスク" value={form.task} onChange={v => setForm({...form, task: v})} placeholder="テキスト p.1-15" />
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="開始時刻" value={form.startTime} onChange={v => setForm({...form, startTime: v})} type="time" />
-          <Field label="終了時刻" value={form.endTime} onChange={v => setForm({...form, endTime: v})} type="time" />
-        </div>
+
       </div>
       <div className="flex gap-2 pt-2">
         <button onClick={handleSubmit} disabled={saving} className="bg-[#FFB800] hover:bg-[#E6A600] text-white text-sm font-semibold px-5 py-2 rounded-xl disabled:opacity-50">
@@ -1036,20 +1032,22 @@ function App() {
   const handleAdd = async (form) => {
     try {
       // clientsテーブルは既存スキーマ（name, color, line_user_id, token）のみ
+      // tokenはLINE User IDを設定、空の場合はランダム文字列で一意性を保つ
+      const token = form.lineUserId || `tmp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const newClient = await addClient({
         name: form.name,
         color: form.color || '#FFB800',
         line_user_id: form.lineUserId || '',
-        token: form.token || '',
+        token: token,
       });
 
-      // 契約情報・タスク・目標はdaily_logsに保存
+      // 契約情報・目標はdaily_logsに保存（タスクはあとで設定）
       await upsertDailyLog({
         client_id: newClient.id,
         date: getTodayStr(),
-        task: form.task || '（未設定）',
-        start_time: form.startTime || '21:00',
-        end_time: form.endTime || '22:00',
+        task: '（未設定）',
+        start_time: '21:00',
+        end_time: '22:00',
         status: 'not_started',
         started_at: null,
         completed_at: null,
