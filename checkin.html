@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1a">
+<title>ヒトミル - 着いた</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100vh; height: 100dvh; overflow: hidden;
+    background: #0a0a0a; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; background: #0a0a0a; }
+  .screen.hidden { display: none; }
+  .header {
+    padding: 20px 24px 16px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: 0.05em; }
+  .logo .accent { color: #FFB800; }
+  .step-indicator { font-size: 13px; color: #888; letter-spacing: 0.1em; }
+  #start-screen { justify-content: space-between; }
+  .start-content {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    align-items: center; padding: 0 32px; text-align: center;
+  }
+  .start-title { font-size: 28px; font-weight: 700; line-height: 1.4; margin-bottom: 16px; }
+  .start-subtitle { font-size: 15px; color: #aaa; line-height: 1.6; margin-bottom: 48px; }
+  .start-icon { font-size: 64px; margin-bottom: 32px; filter: drop-shadow(0 0 20px rgba(255, 184, 0, 0.3)); }
+  .start-button {
+    margin: 0 24px 32px; margin-bottom: max(32px, env(safe-area-inset-bottom));
+    padding: 20px; background: #FFB800; color: #0a0a0a;
+    border: none; border-radius: 16px; font-size: 18px; font-weight: 700;
+    letter-spacing: 0.05em; cursor: pointer;
+    box-shadow: 0 8px 24px rgba(255, 184, 0, 0.3);
+    transition: transform 0.1s ease;
+  }
+  .start-button:active { transform: scale(0.97); }
+  .start-button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #camera-screen { background: #000; }
+  .camera-container { flex: 1; position: relative; overflow: hidden; background: #000; }
+  #video { width: 100%; height: 100%; object-fit: cover; }
+  .camera-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between; padding: 20px;
+  }
+  .camera-instruction {
+    background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 12px 20px; border-radius: 12px;
+    text-align: center; font-size: 14px; color: #fff;
+    align-self: center; margin-top: 20px;
+  }
+  .camera-controls {
+    padding: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom));
+    background: #000; display: flex; align-items: center; justify-content: center;
+  }
+  .shutter-button {
+    width: 80px; height: 80px; border-radius: 50%; background: #fff;
+    border: 6px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer; transition: transform 0.1s ease;
+    padding: 0; position: relative;
+  }
+  .shutter-button:active { transform: scale(0.92); }
+  #done-screen { justify-content: center; align-items: center; padding: 0 32px; }
+  .done-content { text-align: center; width: 100%; max-width: 400px; }
+  .check-circle {
+    width: 96px; height: 96px; border-radius: 50%; background: #FFB800;
+    margin: 0 auto 32px; display: flex; align-items: center; justify-content: center;
+    animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  @keyframes pop { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .check-mark { color: #0a0a0a; font-size: 48px; font-weight: 700; }
+  .done-title { font-size: 32px; font-weight: 700; margin-bottom: 8px; animation: slideUp 0.4s ease 0.2s backwards; }
+  .done-time { font-size: 16px; color: #888; margin-bottom: 32px; animation: slideUp 0.4s ease 0.3s backwards; }
+  .streak-card {
+    background: linear-gradient(135deg, rgba(255, 184, 0, 0.15), rgba(255, 184, 0, 0.05));
+    border: 1px solid rgba(255, 184, 0, 0.3);
+    border-radius: 16px; padding: 24px; margin-bottom: 32px;
+    animation: slideUp 0.4s ease 0.4s backwards;
+  }
+  .streak-label { font-size: 13px; color: #FFB800; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .streak-value { font-size: 36px; font-weight: 700; margin-bottom: 4px; }
+  .streak-sub { font-size: 13px; color: #aaa; }
+  .done-message { font-size: 14px; color: #888; line-height: 1.6; animation: slideUp 0.4s ease 0.5s backwards; }
+  @keyframes slideUp { 0% { transform: translateY(20px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(8px); display: none;
+    flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255, 184, 0, 0.2);
+    border-top-color: #FFB800;
+    border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: #888; }
+  .error-message {
+    background: rgba(255, 60, 60, 0.15); border: 1px solid rgba(255, 60, 60, 0.4);
+    border-radius: 12px; padding: 16px; margin: 20px 24px;
+    font-size: 14px; color: #ff8888; display: none;
+  }
+  .error-message.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="screen" id="start-screen">
+  <div class="header">
+    <div class="logo">ヒトミル<span class="accent">.</span></div>
+    <div class="step-indicator">START</div>
+  </div>
+  <div class="start-content">
+    <div class="start-icon">📍</div>
+    <div class="start-title">着きましたか？<br>撮りましょう ✨</div>
+    <div class="start-subtitle">ジム入口の写真を撮るだけ。<br>あとはコーチが見ています。</div>
+  </div>
+  <div class="error-message" id="start-error"></div>
+  <button class="start-button" id="start-btn" disabled>📷 カメラを起動</button>
+</div>
+
+<div class="screen hidden" id="camera-screen">
+  <div class="camera-container">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="camera-overlay">
+      <div class="camera-instruction">ジム入口を撮影してください</div>
+    </div>
+  </div>
+  <div class="camera-controls">
+    <button class="shutter-button" id="shutter-btn"></button>
+  </div>
+</div>
+
+<div class="screen hidden" id="done-screen">
+  <div class="done-content">
+    <div class="check-circle"><div class="check-mark">✓</div></div>
+    <div class="done-title" id="done-name">着きましたね!</div>
+    <div class="done-time" id="done-time">19:03</div>
+    <div class="streak-card">
+      <div class="streak-label">CONTINUOUS</div>
+      <div class="streak-value" id="streak-value">5日 🔥</div>
+      <div class="streak-sub" id="streak-week">今週 3/3 達成中</div>
+    </div>
+    <div class="done-message">
+      コーチに通知が飛びました ✨<br>
+      もうすぐLINEに返信が届きます。
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">読み込み中...</div>
+</div>
+
+<canvas id="canvas" style="display: none;"></canvas>
+
+<script>
+// ==========================================
+// 設定（後で差し替え）
+// ==========================================
+const LIFF_ID = 'YOUR_LIFF_ID'; // ★LINE DevelopersでLIFF作成後に差し替え★
+const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const startScreen = document.getElementById('start-screen');
+const cameraScreen = document.getElementById('camera-screen');
+const doneScreen = document.getElementById('done-screen');
+const startBtn = document.getElementById('start-btn');
+const shutterBtn = document.getElementById('shutter-btn');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loading-text');
+const startError = document.getElementById('start-error');
+
+let mediaStream = null;
+let clientId = null;
+let clientName = '';
+
+window.addEventListener('load', async () => {
+  showLoading('LINEと接続中...');
+  
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    
+    const profile = await liff.getProfile();
+    const lineUserId = profile.userId;
+    
+    const { data: client, error } = await supabase
+      .from('clients')
+      .select('id, name')
+      .or(`line_user_id.eq.${lineUserId},token.eq.${lineUserId}`)
+      .maybeSingle();
+    
+    if (error) {
+      console.error(error);
+      showStartError('接続エラーが発生しました。');
+      hideLoading();
+      return;
+    }
+    
+    if (!client) {
+      showStartError('会員情報が見つかりません。\nコーチにお問い合わせください。');
+      hideLoading();
+      return;
+    }
+    
+    clientId = client.id;
+    clientName = client.name;
+    
+    startBtn.disabled = false;
+    hideLoading();
+  } catch (e) {
+    console.error('LIFF init error:', e);
+    showStartError('LINE連携に失敗しました: ' + (e.message || ''));
+    hideLoading();
+  }
+});
+
+function showStartError(msg) {
+  startError.textContent = msg;
+  startError.classList.add('show');
+}
+
+startBtn.addEventListener('click', async () => {
+  try {
+    showLoading('カメラを起動中...');
+    
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    
+    video.srcObject = mediaStream;
+    await video.play();
+    
+    hideLoading();
+    startScreen.classList.add('hidden');
+    cameraScreen.classList.remove('hidden');
+  } catch (e) {
+    hideLoading();
+    console.error(e);
+    if (e.name === 'NotAllowedError') {
+      showStartError('カメラの使用を許可してください。');
+    } else {
+      showStartError('カメラを起動できませんでした: ' + e.message);
+    }
+  }
+});
+
+shutterBtn.addEventListener('click', async () => {
+  const ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+  
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+  
+  showLoading('送信中...');
+  
+  canvas.toBlob(async (blob) => {
+    try {
+      await sendCheckin(blob);
+      hideLoading();
+      showDone();
+    } catch (e) {
+      hideLoading();
+      console.error(e);
+      alert('送信に失敗しました。もう一度試してください: ' + e.message);
+      cameraScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+    }
+  }, 'image/jpeg', 0.85);
+});
+
+async function sendCheckin(blob) {
+  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
+  
+  const fileName = `${clientId}/${today}_${Date.now()}.jpg`;
+  const { error: uploadErr } = await supabase
+    .storage.from('checkins')
+    .upload(fileName, blob, { contentType: 'image/jpeg' });
+  
+  let photoUrl = null;
+  if (!uploadErr) {
+    const { data: urlData } = supabase.storage.from('checkins').getPublicUrl(fileName);
+    photoUrl = urlData.publicUrl;
+  }
+  
+  const { data: existing } = await supabase
+    .from('daily_logs')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('date', today)
+    .maybeSingle();
+  
+  if (existing) {
+    const { error } = await supabase
+      .from('daily_logs')
+      .update({
+        status: 'in_progress',
+        started_at: timeStr,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from('daily_logs')
+      .insert({
+        client_id: clientId,
+        date: today,
+        status: 'in_progress',
+        started_at: timeStr,
+        task: 'ジムに行く'
+      });
+    if (error) throw error;
+  }
+  
+  const eventMessage = photoUrl 
+    ? `${clientName}さんがジム到着 📷\n${photoUrl}` 
+    : `${clientName}さんがジム到着`;
+  
+  const { error: evtErr } = await supabase
+    .from('events')
+    .insert({
+      client_id: clientId,
+      date: today,
+      type: 'user_started',
+      message: eventMessage,
+      is_new: true
+    });
+  if (evtErr) throw evtErr;
+  
+  window._checkinTime = timeStr;
+}
+
+async function showDone() {
+  cameraScreen.classList.add('hidden');
+  doneScreen.classList.remove('hidden');
+  
+  document.getElementById('done-name').textContent = `${clientName}さん、着きましたね！`;
+  document.getElementById('done-time').textContent = window._checkinTime || '';
+  
+  try {
+    const stats = await calculateStreak();
+    document.getElementById('streak-value').textContent = `${stats.streak}日 🔥`;
+    document.getElementById('streak-week').textContent = `今週 ${stats.weekDone}/${stats.weekTotal} 達成中`;
+  } catch (e) {
+    console.error('streak calc failed', e);
+  }
+}
+
+async function calculateStreak() {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+  
+  const { data: logs } = await supabase
+    .from('daily_logs')
+    .select('date, status')
+    .eq('client_id', clientId)
+    .gte('date', thirtyDaysAgoStr)
+    .lte('date', todayStr)
+    .order('date', { ascending: false });
+  
+  let streak = 0;
+  if (logs && logs.length > 0) {
+    const cursor = new Date(today);
+    for (let i = 0; i < 30; i++) {
+      const cursorStr = cursor.toISOString().split('T')[0];
+      const log = logs.find(l => l.date === cursorStr);
+      if (log && (log.status === 'in_progress' || log.status === 'completed')) {
+        streak++;
+      } else {
+        break;
+      }
+      cursor.setDate(cursor.getDate() - 1);
+    }
+  }
+  
+  const dayOfWeek = today.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(monday.getDate() - daysSinceMonday);
+  const mondayStr = monday.toISOString().split('T')[0];
+  
+  const weekDone = logs ? logs.filter(l => 
+    l.date >= mondayStr && l.date <= todayStr && 
+    (l.status === 'in_progress' || l.status === 'completed')
+  ).length : 0;
+  
+  const weekTotal = daysSinceMonday + 1;
+  
+  return { streak, weekDone, weekTotal };
+}
+
+function showLoading(text) {
+  loadingText.textContent = text || '送信中...';
+  loading.classList.add('show');
+}
+function hideLoading() {
+  loading.classList.remove('show');
+}
+
+window.addEventListener('beforeunload', () => {
+  if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+});
+</script>
+</body>
+</html>

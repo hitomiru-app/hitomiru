@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a1a">
+<title>ヒトミル - レポート</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; min-height: 100vh; min-height: 100dvh;
+    background: #0a0a0a; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+  }
+  .container {
+    max-width: 600px; margin: 0 auto;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+  .header {
+    padding: 20px 24px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 18px; font-weight: 700; letter-spacing: 0.05em; }
+  .logo .accent { color: #FFB800; }
+  .step-indicator { font-size: 13px; color: #888; letter-spacing: 0.1em; }
+  .greeting { padding: 16px 24px 32px; }
+  .greeting-text { font-size: 22px; font-weight: 700; line-height: 1.4; }
+  .section { padding: 0 24px 32px; }
+  .section-title {
+    font-size: 12px; color: #FFB800;
+    letter-spacing: 0.15em; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after {
+    content: ''; flex: 1; height: 1px;
+    background: rgba(255, 184, 0, 0.2);
+  }
+  .week-card {
+    background: linear-gradient(135deg, rgba(255, 184, 0, 0.15), rgba(255, 184, 0, 0.05));
+    border: 1px solid rgba(255, 184, 0, 0.3);
+    border-radius: 16px; padding: 24px; margin-bottom: 16px;
+  }
+  .week-summary {
+    display: flex; justify-content: space-between;
+    align-items: baseline; margin-bottom: 4px;
+  }
+  .week-label { font-size: 13px; color: #aaa; }
+  .week-progress { font-size: 28px; font-weight: 700; }
+  .week-progress-total { font-size: 16px; color: #888; font-weight: 400; }
+  .week-bar {
+    height: 8px; background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px; overflow: hidden; margin-top: 12px;
+  }
+  .week-bar-fill {
+    height: 100%; background: #FFB800;
+    border-radius: 4px; transition: width 0.5s ease;
+  }
+  .week-days { display: flex; gap: 4px; margin-top: 16px; }
+  .day-pill {
+    flex: 1; padding: 8px 4px; text-align: center;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px; font-size: 11px;
+  }
+  .day-pill.done { background: rgba(255, 184, 0, 0.2); color: #FFB800; }
+  .day-pill.today { border: 1px solid rgba(255, 184, 0, 0.5); }
+  .day-label { color: #888; font-size: 10px; margin-bottom: 2px; }
+  .day-pill.done .day-label { color: #FFB800; }
+  .day-num { font-weight: 600; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .stat-box {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px; padding: 16px 8px; text-align: center;
+  }
+  .stat-label {
+    font-size: 10px; color: #888;
+    letter-spacing: 0.1em; margin-bottom: 6px;
+  }
+  .stat-value { font-size: 22px; font-weight: 700; line-height: 1; }
+  .stat-unit { font-size: 11px; color: #888; margin-left: 2px; font-weight: 400; }
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .history-status {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .history-status.completed { background: rgba(255, 184, 0, 0.2); }
+  .history-status.in-progress { background: rgba(100, 200, 255, 0.15); }
+  .history-info { flex: 1; min-width: 0; }
+  .history-date { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .history-time { font-size: 12px; color: #888; }
+  .history-duration {
+    font-size: 16px; font-weight: 700; color: #FFB800;
+    flex-shrink: 0;
+  }
+  .history-duration-unit { font-size: 11px; color: #888; margin-left: 1px; font-weight: 400; }
+  .empty-state { text-align: center; padding: 32px 16px; color: #666; font-size: 13px; }
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(8px); display: flex;
+    flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+  }
+  .loading-overlay.hidden { display: none; }
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255, 184, 0, 0.2);
+    border-top-color: #FFB800;
+    border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: #888; }
+  .error-message {
+    background: rgba(255, 60, 60, 0.15); border: 1px solid rgba(255, 60, 60, 0.4);
+    border-radius: 12px; padding: 16px; margin: 20px 24px;
+    font-size: 14px; color: #ff8888;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">ヒトミル<span class="accent">.</span></div>
+    <div class="step-indicator">REPORT 📊</div>
+  </div>
+  <div class="greeting">
+    <div class="greeting-text" id="greeting">あなたの戦績</div>
+  </div>
+  <div class="section">
+    <div class="section-title">THIS WEEK</div>
+    <div class="week-card">
+      <div class="week-summary">
+        <div class="week-label">今週のジム</div>
+        <div class="week-progress">
+          <span id="week-done">-</span><span class="week-progress-total">/<span id="week-target">-</span></span>
+        </div>
+      </div>
+      <div class="week-bar">
+        <div class="week-bar-fill" id="week-bar" style="width: 0%;"></div>
+      </div>
+      <div class="week-days" id="week-days"></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">RECORDS</div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">CONTINUOUS</div>
+        <div class="stat-value"><span id="stat-streak">-</span><span class="stat-unit">日</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">THIS MONTH</div>
+        <div class="stat-value"><span id="stat-month">-</span><span class="stat-unit">回</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">TOTAL TIME</div>
+        <div class="stat-value"><span id="stat-total-time">-</span><span class="stat-unit">時間</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">RECENT SESSIONS</div>
+    <div class="history-list" id="history-list">
+      <div class="empty-state">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div class="loading-text">LINEと接続中...</div>
+</div>
+
+<script>
+const LIFF_ID = 'YOUR_LIFF_ID'; // ★差し替え★
+const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const loading = document.getElementById('loading');
+let clientId = null;
+let clientName = '';
+
+window.addEventListener('load', async () => {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+    const profile = await liff.getProfile();
+    const lineUserId = profile.userId;
+    
+    const { data: client, error } = await supabase
+      .from('clients')
+      .select('id, name')
+      .or(`line_user_id.eq.${lineUserId},token.eq.${lineUserId}`)
+      .maybeSingle();
+    
+    if (error || !client) {
+      loading.innerHTML = '<div class="error-message">会員情報が見つかりません。コーチにお問い合わせください。</div>';
+      return;
+    }
+    
+    clientId = client.id;
+    clientName = client.name;
+    
+    await loadReport();
+    loading.classList.add('hidden');
+  } catch (e) {
+    console.error(e);
+    loading.innerHTML = '<div class="error-message">読み込みに失敗しました: ' + (e.message || '') + '</div>';
+  }
+});
+
+async function loadReport() {
+  document.getElementById('greeting').textContent = `${clientName}さんの戦績 ✨`;
+  
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const ninetyDaysAgo = new Date(today);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0];
+  
+  const { data: logs } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('client_id', clientId)
+    .gte('date', ninetyDaysAgoStr)
+    .lte('date', todayStr)
+    .order('date', { ascending: false });
+  
+  const allLogs = logs || [];
+  const doneLogs = allLogs.filter(l => l.status === 'in_progress' || l.status === 'completed');
+  
+  // 今週
+  const dayOfWeek = today.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(monday.getDate() - daysSinceMonday);
+  
+  const weekLogs = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    const dStr = d.toISOString().split('T')[0];
+    const log = allLogs.find(l => l.date === dStr);
+    weekLogs.push({ date: dStr, dateObj: d, log });
+  }
+  
+  const weekPlanned = weekLogs.filter(w => w.log).length;
+  const weekDone = weekLogs.filter(w => w.log?.status === 'in_progress' || w.log?.status === 'completed').length;
+  const weekTarget = Math.max(weekPlanned, weekDone, 1);
+  
+  document.getElementById('week-done').textContent = weekDone;
+  document.getElementById('week-target').textContent = weekTarget;
+  document.getElementById('week-bar').style.width = `${Math.min(100, (weekDone / weekTarget) * 100)}%`;
+  
+  const weekDaysEl = document.getElementById('week-days');
+  weekDaysEl.innerHTML = '';
+  const dayLabels = ['月', '火', '水', '木', '金', '土', '日'];
+  weekLogs.forEach((w, idx) => {
+    const isDone = w.log?.status === 'in_progress' || w.log?.status === 'completed';
+    const isToday = w.date === todayStr;
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (isDone ? ' done' : '') + (isToday ? ' today' : '');
+    pill.innerHTML = `<div class="day-label">${dayLabels[idx]}</div><div class="day-num">${isDone ? '✓' : (w.dateObj <= today ? '−' : '・')}</div>`;
+    weekDaysEl.appendChild(pill);
+  });
+  
+  // 連続日数
+  let streak = 0;
+  const cursor = new Date(today);
+  for (let i = 0; i < 90; i++) {
+    const cursorStr = cursor.toISOString().split('T')[0];
+    const log = allLogs.find(l => l.date === cursorStr);
+    if (log && (log.status === 'in_progress' || log.status === 'completed')) {
+      streak++;
+    } else {
+      break;
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  document.getElementById('stat-streak').textContent = streak;
+  
+  // 今月
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const monthDone = doneLogs.filter(l => l.date >= firstOfMonth && l.date <= todayStr).length;
+  document.getElementById('stat-month').textContent = monthDone;
+  
+  // 累計時間
+  let totalMin = 0;
+  doneLogs.forEach(l => {
+    if (l.started_at && l.completed_at) {
+      const startMin = parseTimeToMinutes(l.started_at);
+      const endMin = parseTimeToMinutes(l.completed_at);
+      totalMin += Math.max(0, endMin - startMin);
+    }
+  });
+  const totalHours = (totalMin / 60).toFixed(1);
+  document.getElementById('stat-total-time').textContent = totalHours;
+  
+  // 履歴
+  const historyEl = document.getElementById('history-list');
+  if (doneLogs.length === 0) {
+    historyEl.innerHTML = '<div class="empty-state">まだセッション記録がありません。<br>初回お疲れ様 ✨</div>';
+    return;
+  }
+  
+  historyEl.innerHTML = '';
+  const recent = doneLogs.slice(0, 10);
+  recent.forEach(log => {
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    
+    const dateObj = new Date(log.date);
+    const dateLabel = `${dateObj.getMonth() + 1}/${dateObj.getDate()} (${dayLabels[(dateObj.getDay() + 6) % 7]})`;
+    
+    let timeRange = '';
+    let duration = 0;
+    if (log.started_at && log.completed_at) {
+      timeRange = `${log.started_at} → ${log.completed_at}`;
+      const startMin = parseTimeToMinutes(log.started_at);
+      const endMin = parseTimeToMinutes(log.completed_at);
+      duration = Math.max(0, endMin - startMin);
+    } else if (log.started_at) {
+      timeRange = `${log.started_at} 〜 (進行中)`;
+    }
+    
+    let statusIcon = '✓';
+    let statusClass = 'completed';
+    if (log.status === 'in_progress') {
+      statusIcon = '⏱';
+      statusClass = 'in-progress';
+    }
+    
+    item.innerHTML = `
+      <div class="history-status ${statusClass}">${statusIcon}</div>
+      <div class="history-info">
+        <div class="history-date">${dateLabel}</div>
+        <div class="history-time">${timeRange}</div>
+      </div>
+      ${duration > 0 ? `<div class="history-duration">${duration}<span class="history-duration-unit">分</span></div>` : ''}
+    `;
+    
+    historyEl.appendChild(item);
+  });
+}
+
+function parseTimeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+</script>
+</body>
+</html>
