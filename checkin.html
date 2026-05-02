@@ -331,7 +331,7 @@ async function send(blob) {
     await sb.functions.invoke('send-line-message', {
       body: {
         lineUserId: lineUserId,
-        message: `📍 ${cname}さん、ジム到着確認しました！\n\n⏱ ${ctime} セッション開始\n💪 今日もえらいです！\n\nトレーニング頑張ってください✨\n終わったら「🏁帰る」を押してくださいね。`
+        message: `✅ ${cname}さん、ジム到着を確認しました！\n\n🔥 本日のセッション開始\n📊 現在の連続記録についてはレポートをチェック！\n\nコーチが確認次第、メッセージをお送りしますね。\nトレーニング頑張ってください💪\n\n終わったら「🏁帰る」を押してください。`
       }
     });
   } catch (lineErr) {
