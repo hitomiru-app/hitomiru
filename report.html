@@ -65,6 +65,9 @@
     border-radius: 8px; font-size: 11px;
   }
   .day-pill.done { background: rgba(255, 184, 0, 0.2); color: #FFB800; }
+  .day-pill.scheduled { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .day-pill.missed { background: rgba(255, 69, 58, 0.14); color: #ff8888; }
+  .day-pill.rescheduled { background: rgba(100, 200, 255, 0.12); color: #80d8ff; }
   .day-pill.today { border: 1px solid rgba(255, 184, 0, 0.5); }
   .day-label { color: #888; font-size: 10px; margin-bottom: 2px; }
   .day-pill.done .day-label { color: #FFB800; }
@@ -156,7 +159,7 @@
     <div class="stats-grid">
       <div class="stat-box">
         <div class="stat-label">CONTINUOUS</div>
-        <div class="stat-value"><span id="stat-streak">-</span><span class="stat-unit">日</span></div>
+        <div class="stat-value"><span id="stat-streak">-</span><span class="stat-unit">回</span></div>
       </div>
       <div class="stat-box">
         <div class="stat-label">THIS MONTH</div>
@@ -203,12 +206,20 @@ window.addEventListener('load', async () => {
     
     const { data: client, error } = await supabase
       .from('clients')
-      .select('id, name')
+      .select('*')
       .or(`line_user_id.eq.${lineUserId},token.eq.${lineUserId}`)
       .maybeSingle();
     
     if (error || !client) {
-      loading.innerHTML = '<div class="error-message">会員情報が見つかりません。コーチにお問い合わせください。</div>';
+      loading.innerHTML = '<div class="error-message">ヒトミルは現在、モニター登録者のみ利用できます。<br>モニター希望の方は、LINEで「モニター」と送ってください。</div>';
+      return;
+    }
+
+    const status = client.status || 'monitor';
+    const todayForStatus = new Date().toISOString().split('T')[0];
+    const ended = client.plan_end_date && todayForStatus > client.plan_end_date && status === 'monitor';
+    if (['lead', 'expired', 'cancelled'].includes(status) || ended) {
+      loading.innerHTML = '<div class="error-message">ヒトミルのモニター期間が終了しました。<br>継続希望の方は、LINEで「継続」と送ってください。</div>';
       return;
     }
     
@@ -241,7 +252,10 @@ async function loadReport() {
     .order('date', { ascending: false });
   
   const allLogs = logs || [];
-  const doneLogs = allLogs.filter(l => l.status === 'in_progress' || l.status === 'completed');
+  const successStatuses = ['in_progress', 'completed'];
+  const plannedStatuses = ['scheduled', 'in_progress', 'completed', 'missed', 'rescheduled'];
+  const plannedLogs = allLogs.filter(l => plannedStatuses.includes(l.status));
+  const doneLogs = allLogs.filter(l => successStatuses.includes(l.status));
   
   // 今週
   const dayOfWeek = today.getDay();
@@ -258,8 +272,8 @@ async function loadReport() {
     weekLogs.push({ date: dStr, dateObj: d, log });
   }
   
-  const weekPlanned = weekLogs.filter(w => w.log).length;
-  const weekDone = weekLogs.filter(w => w.log?.status === 'in_progress' || w.log?.status === 'completed').length;
+  const weekPlanned = weekLogs.filter(w => w.log && plannedStatuses.includes(w.log.status)).length;
+  const weekDone = weekLogs.filter(w => w.log && successStatuses.includes(w.log.status)).length;
   const weekTarget = Math.max(weekPlanned, weekDone, 1);
   
   document.getElementById('week-done').textContent = weekDone;
@@ -270,26 +284,22 @@ async function loadReport() {
   weekDaysEl.innerHTML = '';
   const dayLabels = ['月', '火', '水', '木', '金', '土', '日'];
   weekLogs.forEach((w, idx) => {
-    const isDone = w.log?.status === 'in_progress' || w.log?.status === 'completed';
+    const status = w.log?.status || '';
+    const isDone = successStatuses.includes(status);
     const isToday = w.date === todayStr;
+    const stateClass = isDone ? ' done' : status === 'scheduled' ? ' scheduled' : status === 'missed' ? ' missed' : status === 'rescheduled' ? ' rescheduled' : '';
+    const mark = isDone ? '✓' : status === 'scheduled' ? '予' : status === 'missed' ? '×' : status === 'rescheduled' ? '↺' : (w.dateObj <= today ? '−' : '・');
     const pill = document.createElement('div');
-    pill.className = 'day-pill' + (isDone ? ' done' : '') + (isToday ? ' today' : '');
-    pill.innerHTML = `<div class="day-label">${dayLabels[idx]}</div><div class="day-num">${isDone ? '✓' : (w.dateObj <= today ? '−' : '・')}</div>`;
+    pill.className = 'day-pill' + stateClass + (isToday ? ' today' : '');
+    pill.innerHTML = `<div class="day-label">${dayLabels[idx]}</div><div class="day-num">${mark}</div>`;
     weekDaysEl.appendChild(pill);
   });
   
-  // 連続日数
+  // 連続チェックイン: カレンダー日数ではなく、予定日に対して連続でチェックインできた回数
   let streak = 0;
-  const cursor = new Date(today);
-  for (let i = 0; i < 90; i++) {
-    const cursorStr = cursor.toISOString().split('T')[0];
-    const log = allLogs.find(l => l.date === cursorStr);
-    if (log && (log.status === 'in_progress' || log.status === 'completed')) {
-      streak++;
-    } else {
-      break;
-    }
-    cursor.setDate(cursor.getDate() - 1);
+  for (const log of plannedLogs) {
+    if (successStatuses.includes(log.status)) streak++;
+    else break;
   }
   document.getElementById('stat-streak').textContent = streak;
   
