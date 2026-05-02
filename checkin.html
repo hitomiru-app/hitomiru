@@ -11,18 +11,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --yellow: #FFC107;
-  --yellow-deep: #FFB300;
-  --yellow-pale: #FFF8E1;
-  --yellow-glow: #FFECB3;
-  --dark: #1C1C1E;
-  --dark2: #2C2C2E;
-  --gray: #8E8E93;
-  --gray-light: #F2F2F7;
-  --white: #FFFFFF;
-  --success: #30D158;
-  --success-bg: #E8FAE8;
-  --danger: #FF453A;
+  --yellow: #FFC107; --yellow-deep: #FFB300; --yellow-pale: #FFF8E1;
+  --yellow-glow: #FFECB3; --dark: #1C1C1E; --dark2: #2C2C2E;
+  --gray: #8E8E93; --gray-light: #F2F2F7; --white: #FFFFFF;
+  --success: #30D158; --success-bg: #E8FAE8; --danger: #FF453A;
   --font: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -33,7 +25,6 @@ html, body {
 }
 .screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
 .screen.hidden { display: none; }
-
 .nav {
   padding: 16px 20px; padding-top: max(16px, env(safe-area-inset-top));
   display: flex; align-items: center; justify-content: space-between;
@@ -50,7 +41,6 @@ html, body {
   color: var(--dark); background: var(--yellow);
   padding: 5px 12px; border-radius: 20px;
 }
-
 #start-screen {
   background: linear-gradient(180deg, var(--dark) 0%, #262626 100%);
   justify-content: space-between;
@@ -84,7 +74,6 @@ html, body {
   background-clip: text;
 }
 .hero-sub { font-size: 14px; color: var(--gray); line-height: 1.7; }
-
 .bottom {
   padding: 16px 20px; padding-bottom: max(16px, env(safe-area-inset-bottom));
   background: var(--dark);
@@ -102,7 +91,6 @@ html, body {
 .btn-main:active { transform: scale(0.97); box-shadow: 0 3px 12px rgba(255, 193, 7, 0.2); }
 .btn-main:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
 .btn-main svg { width: 20px; height: 20px; }
-
 .debug-box {
   margin: 0 20px 12px; padding: 14px 16px;
   background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255, 69, 58, 0.3);
@@ -258,7 +246,7 @@ const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
-let stream = null, cid = null, cname = '', ctime = '';
+let stream = null, cid = null, cname = '', ctime = '', lineUserId = '';
 
 function dbg(msg, isErr) {
   const el = $('debug');
@@ -269,38 +257,21 @@ function dbg(msg, isErr) {
 window.addEventListener('load', async () => {
   showL('LINEと接続中...');
   try {
-    dbg('LIFF初期化中... ID: ' + LIFF_ID);
     await liff.init({ liffId: LIFF_ID });
-    dbg('LIFF初期化完了。ログイン確認中...');
+    if (!liff.isLoggedIn()) { liff.login(); return; }
 
-    if (!liff.isLoggedIn()) {
-      dbg('未ログイン。ログイン画面に遷移します...');
-      liff.login();
-      return;
-    }
-
-    dbg('ログイン済み。プロフィール取得中...');
     const p = await liff.getProfile();
-    dbg('LINE User ID: ' + p.userId.substring(0, 10) + '...');
+    lineUserId = p.userId;
 
     const { data: c, error: e } = await sb.from('clients').select('id,name')
       .or(`line_user_id.eq.${p.userId},token.eq.${p.userId}`).maybeSingle();
 
-    if (e) {
-      dbg('Supabaseエラー: ' + JSON.stringify(e), true);
-      hideL(); return;
-    }
-    if (!c) {
-      dbg('会員が見つかりません。clients テーブルに line_user_id=' + p.userId.substring(0, 15) + '... を登録してください。', true);
-      hideL(); return;
-    }
+    if (e) { dbg('Supabaseエラー: ' + JSON.stringify(e), true); hideL(); return; }
+    if (!c) { dbg('会員が見つかりません。', true); hideL(); return; }
 
     cid = c.id; cname = c.name;
-    dbg('会員確認OK: ' + cname + ' (id=' + cid + ')');
     $('start-btn').disabled = false;
     hideL();
-
-    setTimeout(() => { $('debug').style.display = 'none'; }, 3000);
   } catch (err) {
     dbg('エラー: ' + (err.message || JSON.stringify(err)), true);
     hideL();
@@ -320,7 +291,7 @@ $('start-btn').addEventListener('click', async () => {
     $('camera-screen').classList.remove('hidden');
   } catch (e) {
     hideL();
-    dbg('カメラエラー: ' + e.name + ' - ' + e.message + '. iPhoneの場合: 設定 > LINE > カメラ をONにしてください。', true);
+    dbg('カメラエラー: ' + e.name + ' - ' + e.message, true);
   }
 });
 
@@ -332,7 +303,7 @@ $('shutter-btn').addEventListener('click', async () => {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   showL('送信中...');
   $('canvas').toBlob(async blob => {
-    try { await send(blob); hideL(); doneUI(); }
+    try { await send(blob); hideL(); await doneUI(); }
     catch (e) { hideL(); alert('送信失敗: ' + e.message); $('camera-screen').classList.add('hidden'); $('start-screen').classList.remove('hidden'); }
   }, 'image/jpeg', 0.85);
 });
@@ -354,6 +325,18 @@ async function send(blob) {
   }
   const msg = url ? `${cname}さんがジム到着 📷\n${url}` : `${cname}さんがジム到着`;
   await sb.from('events').insert({ client_id: cid, date: today, type: 'user_started', message: msg, is_new: true });
+
+  // ★ LINE公式アカウントからプッシュメッセージ送信（Edge Function経由）
+  try {
+    await sb.functions.invoke('send-line-message', {
+      body: {
+        lineUserId: lineUserId,
+        message: `📍 ${cname}さん、ジム到着確認しました！\n\n⏱ ${ctime} セッション開始\n💪 今日もえらいです！\n\nトレーニング頑張ってください✨\n終わったら「🏁帰る」を押してくださいね。`
+      }
+    });
+  } catch (lineErr) {
+    console.log('LINE送信エラー（無視可）:', lineErr);
+  }
 }
 
 async function doneUI() {
