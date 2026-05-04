@@ -428,7 +428,7 @@ async function handleCheckout() {
   const now = nowTime();
   const today = todayStr();
   try {
-    await sbPatch('daily_logs', logId, { status: 'completed', completed_at: now, updated_at: new Date().toISOString() });
+    await sbPatch('daily_logs', logId, { status: 'completed', completed_at: now });
     await sbInsert('events', {
       client_id: clientId, date: today,
       type: 'user_completed',
@@ -487,15 +487,9 @@ async function main() {
   setStatus('データ取得中...');
   try {
     const safeUserId = encodeURIComponent(lineUserId);
-    const clients = await sbGet(`/rest/v1/clients?or=(token.eq.${safeUserId},line_user_id.eq.${safeUserId})&select=id,name,status,plan_end_date&limit=1`);
+    const clients = await sbGet(`/rest/v1/clients?or=(token.eq.${safeUserId},line_user_id.eq.${safeUserId})&select=id,name&limit=1`);
     if (!clients.length) throw new Error('このアカウントは登録されていません');
     const client = clients[0];
-    if (['lead', 'expired', 'cancelled'].includes(client.status)) {
-      throw new Error('このアカウントはまだ利用開始前、または利用期間外です');
-    }
-    if (client.plan_end_date && todayStr() > client.plan_end_date && client.status === 'monitor') {
-      throw new Error('モニター期間が終了しています');
-    }
     clientId = client.id; clientName = client.name;
     $('client-name').textContent = clientName;
   } catch(e) { showError(e.message); return; }
