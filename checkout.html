@@ -5,297 +5,182 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ヒトミル - 退館</title>
   <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:        #111113;
-      --bg2:       #1A1A1D;
-      --bg3:       #242428;
-      --border:    #2E2E34;
-      --gold:      #C9A84C;
-      --gold2:     #E8CC80;
-      --gold3:     #F5E4A8;
-      --green:     #4CAF82;
-      --green2:    rgba(76,175,130,0.12);
-      --green3:    rgba(76,175,130,0.3);
-      --text:      #F2EEE6;
-      --text2:     rgba(242,238,230,0.55);
-      --text3:     rgba(242,238,230,0.3);
-      --radius:    18px;
-      --radius-sm: 12px;
+      --bg:      #1C1C1E;
+      --bg2:     #2C2C2E;
+      --bg3:     #3A3A3C;
+      --yellow:  #FFC107;
+      --yellow2: #FFD54F;
+      --green:   #34C759;
+      --red:     #FF3B30;
+      --text:    #FFFFFF;
+      --text2:   rgba(235,235,245,0.6);
+      --text3:   rgba(235,235,245,0.35);
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
-    html, body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
-      min-height: 100dvh;
-      overflow-x: hidden;
-    }
+    html, body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans','Noto Sans JP',sans-serif; min-height: 100dvh; }
 
     /* ── LOADING ── */
     #loading-screen {
-      position: fixed; inset: 0;
-      background: var(--bg);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 28px; z-index: 100;
-      transition: opacity .5s ease;
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100;
+      transition: opacity .4s;
     }
     #loading-screen.hidden { opacity: 0; pointer-events: none; }
-
-    .load-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 32px; font-weight: 300; letter-spacing: 6px;
-      background: linear-gradient(135deg, var(--gold), var(--gold3), var(--gold));
+    .logo-wrap { text-align: center; }
+    .logo-sub  { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 8px; }
+    .logo-text {
+      font-size: 30px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-transform: lowercase;
     }
-    .load-bar-wrap {
-      width: 120px; height: 1px;
-      background: var(--border); border-radius: 99px; overflow: hidden;
-    }
+    .load-bar-wrap { width: 100px; height: 2px; background: var(--bg3); border-radius: 99px; overflow: hidden; }
     .load-bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--gold), var(--gold3));
-      border-radius: 99px;
-      animation: loadSlide 1.6s ease-in-out infinite;
+      height: 100%; background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      animation: barSlide 1.4s ease-in-out infinite;
     }
-    @keyframes loadSlide {
-      0%   { transform: translateX(-100%); }
-      50%  { transform: translateX(0%); }
-      100% { transform: translateX(100%); }
-    }
-    .load-status {
-      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-      color: var(--text3); font-weight: 500;
-    }
+    @keyframes barSlide { 0%{transform:translateX(-100%)} 50%{transform:translateX(0)} 100%{transform:translateX(100%)} }
+    .load-status { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); font-weight: 600; }
 
     /* ── ERROR ── */
     #error-screen {
-      display: none; position: fixed; inset: 0;
-      background: var(--bg);
+      display: none; position: fixed; inset: 0; background: var(--bg);
       flex-direction: column; align-items: center; justify-content: center;
-      gap: 16px; padding: 40px; text-align: center;
+      gap: 14px; padding: 40px; text-align: center;
     }
     #error-screen.visible { display: flex; }
-    .err-title { font-size: 16px; font-weight: 700; }
-    .err-msg   { font-size: 13px; color: var(--text3); line-height: 1.7; }
 
     /* ── MAIN ── */
-    #main {
-      display: none; flex-direction: column;
-      min-height: 100dvh;
-      opacity: 0; transform: translateY(12px);
-      transition: opacity .5s ease, transform .5s ease;
-    }
+    #main { display: none; flex-direction: column; min-height: 100dvh; opacity: 0; transform: translateY(10px); transition: opacity .4s, transform .4s; }
     #main.visible { display: flex; }
     #main.shown   { opacity: 1; transform: none; }
 
     /* ── HEADER ── */
-    .header {
-      padding: 56px 24px 32px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: flex-end; justify-content: space-between;
-    }
-    .header-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 28px; font-weight: 300; letter-spacing: 4px;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+    .header { padding: 52px 22px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bg3); }
+    .header-left .eyebrow { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 4px; }
+    .header-left .h-logo {
+      font-size: 22px; font-weight: 800; letter-spacing: 1.5px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-transform: lowercase;
     }
-    .header-eyebrow {
-      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--text3); font-weight: 600; margin-bottom: 6px;
-    }
-    .header-name {
-      font-size: 12px; color: var(--text2); font-weight: 500; text-align: right;
-    }
+    .header-name { font-size: 12px; color: var(--text2); font-weight: 600; }
 
     /* ── SECTION ── */
-    .section { padding: 32px 24px 0; }
-    .section-eyebrow {
-      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--gold); font-weight: 700; margin-bottom: 20px;
+    .section { padding: 28px 22px 0; }
+    .sec-label {
+      font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--yellow); font-weight: 700; margin-bottom: 16px;
       display: flex; align-items: center; gap: 10px;
     }
-    .section-eyebrow::after {
-      content: ''; flex: 1; height: 1px;
-      background: linear-gradient(90deg, var(--border), transparent);
+    .sec-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--bg3), transparent); }
+
+    /* ── HERO CARD ── */
+    .hero-card {
+      background: var(--bg2); border-radius: 20px; padding: 28px 24px;
+      border: 1px solid var(--bg3); position: relative; overflow: hidden;
+      text-align: center;
+    }
+    .hero-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--yellow), transparent); opacity: .6;
     }
 
-    /* ── SESSION CARD ── */
-    .session-status-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px 24px;
-      position: relative; overflow: hidden;
-    }
-    .session-status-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
-      opacity: .5;
-    }
-
-    /* ── IN_PROGRESS STATE ── */
-    #state-in-progress { display: none; }
-    #state-in-progress.active { display: block; }
-
-    .timer-label {
-      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--text3); font-weight: 600; margin-bottom: 8px;
-    }
+    /* セッション中 */
+    .timer-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 6px; }
     .timer-value {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 56px; font-weight: 300; line-height: 1;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      font-size: 60px; font-weight: 800; line-height: 1; letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      letter-spacing: 2px;
     }
-    .timer-since {
-      font-size: 12px; color: var(--text3); margin-top: 8px; font-weight: 500;
-    }
-
-    .divider { height: 1px; background: var(--border); margin: 24px 0; }
-
     .checkin-row {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px;
     }
     .checkin-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 8px var(--green);
-      animation: pulse 2s ease-in-out infinite;
+      width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 8px var(--green); animation: pulse 2s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%,100% { opacity: 1; transform: scale(1); }
-      50%      { opacity: .5; transform: scale(.8); }
-    }
-    .checkin-text { font-size: 13px; color: var(--text2); font-weight: 500; }
-    .checkin-time { font-size: 13px; font-weight: 700; color: var(--text); }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+    .checkin-label { font-size: 12px; color: var(--text2); font-weight: 600; }
+    .checkin-time  { font-size: 12px; color: var(--text);  font-weight: 700; }
 
-    /* ── NOT STARTED STATE ── */
-    #state-not-started { display: none; }
-    #state-not-started.active { display: block; }
+    /* チェックイン未実施 */
+    .not-started-icon { font-size: 48px; margin-bottom: 14px; }
+    .not-started-title { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+    .not-started-sub   { font-size: 13px; color: var(--text2); line-height: 1.7; }
 
-    .not-started-msg {
-      text-align: center; padding: 12px 0 4px;
-    }
-    .not-started-icon { font-size: 36px; margin-bottom: 12px; }
-    .not-started-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-    .not-started-sub { font-size: 13px; color: var(--text3); line-height: 1.6; }
+    /* 完了済み */
+    .already-icon  { font-size: 48px; margin-bottom: 14px; }
+    .already-title { font-size: 17px; font-weight: 800; color: var(--green); margin-bottom: 6px; }
+    .already-sub   { font-size: 13px; color: var(--text2); line-height: 1.7; }
 
-    /* ── BUTTON ── */
+    /* ── BTN ── */
     .btn-end {
-      margin-top: 28px;
-      width: 100%;
-      padding: 18px;
-      background: linear-gradient(135deg, var(--gold), var(--gold2));
-      border: none; border-radius: var(--radius-sm);
+      margin-top: 24px; width: 100%; padding: 18px;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
+      border: none; border-radius: 14px;
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 15px; font-weight: 800; letter-spacing: 1px;
-      color: #111;
-      cursor: pointer;
-      transition: opacity .2s, transform .1s;
-      position: relative; overflow: hidden;
+      font-size: 16px; font-weight: 800; color: #111; letter-spacing: .5px;
+      cursor: pointer; transition: opacity .2s, transform .1s;
     }
-    .btn-end:active { opacity: .85; transform: scale(.98); }
+    .btn-end:active   { opacity: .8; transform: scale(.98); }
     .btn-end:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
-    /* ── STREAK & WEEK (bottom stats) ── */
-    .stats-row {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-    }
+    /* ── STATS ── */
+    .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .stat-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      display: flex; flex-direction: column; gap: 6px;
+      background: var(--bg2); border: 1px solid var(--bg3); border-radius: 14px;
+      padding: 16px; display: flex; flex-direction: column; gap: 4px;
       position: relative; overflow: hidden;
     }
     .stat-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
-      opacity: .4;
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--yellow), transparent); opacity: .4;
     }
-    .stat-label {
-      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--text3); font-weight: 700;
-    }
+    .stat-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); font-weight: 700; }
     .stat-value {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 36px; font-weight: 500; line-height: 1;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      font-size: 38px; font-weight: 800; line-height: 1;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .stat-unit {
-      font-size: 10px; color: var(--text3); font-weight: 600;
-      letter-spacing: 1px; text-transform: uppercase; margin-top: -2px;
-    }
+    .stat-unit { font-size: 10px; color: var(--text3); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 
-    /* ── DONE SCREEN ── */
+    /* ── DONE OVERLAY ── */
     #done-screen {
-      display: none; position: fixed; inset: 0;
-      background: var(--bg);
+      display: none; position: fixed; inset: 0; background: var(--bg);
       flex-direction: column; align-items: center; justify-content: center;
-      gap: 0; padding: 40px; text-align: center;
-      opacity: 0; transition: opacity .5s ease;
+      gap: 0; padding: 36px; text-align: center;
+      opacity: 0; transition: opacity .5s;
     }
     #done-screen.visible { display: flex; }
     #done-screen.shown   { opacity: 1; }
 
     .done-check {
-      width: 72px; height: 72px; border-radius: 50%;
-      background: var(--green2);
-      border: 1px solid var(--green3);
+      width: 80px; height: 80px; border-radius: 50%;
+      background: rgba(52,199,89,.12); border: 2px solid rgba(52,199,89,.4);
       display: flex; align-items: center; justify-content: center;
-      font-size: 28px; margin-bottom: 24px;
+      font-size: 36px; margin-bottom: 22px;
       animation: popIn .5s cubic-bezier(.34,1.56,.64,1) both;
     }
-    @keyframes popIn {
-      from { transform: scale(0); opacity: 0; }
-      to   { transform: scale(1); opacity: 1; }
-    }
-    .done-title {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 26px; font-weight: 400; letter-spacing: 1px;
-      color: var(--text); margin-bottom: 6px;
-    }
-    .done-name {
-      font-size: 13px; color: var(--text3); margin-bottom: 36px;
-    }
+    @keyframes popIn { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
 
-    .done-stats {
-      width: 100%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px;
-    }
-    .done-stat-row {
+    .done-title { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+    .done-sub   { font-size: 13px; color: var(--text2); margin-bottom: 32px; }
+
+    .done-stats { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .done-row {
       display: flex; justify-content: space-between; align-items: center;
+      background: var(--bg2); border: 1px solid var(--bg3); border-radius: 12px;
       padding: 14px 18px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
     }
-    .done-stat-label { font-size: 12px; color: var(--text3); font-weight: 600; }
-    .done-stat-value {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 22px; font-weight: 500;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+    .done-row-label { font-size: 12px; color: var(--text2); font-weight: 600; }
+    .done-row-value {
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
+    .done-msg { font-size: 13px; color: var(--text2); line-height: 1.8; }
 
-    .done-message {
-      font-size: 13px; color: var(--text2); line-height: 1.8;
-    }
-
-    /* padding bottom */
     .pb { padding-bottom: 40px; }
   </style>
 </head>
@@ -303,9 +188,9 @@
 
 <!-- Loading -->
 <div id="loading-screen">
-  <div>
-    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);text-align:center;margin-bottom:10px;font-weight:600;">CHECK OUT</div>
-    <div class="load-logo">hitomiru</div>
+  <div class="logo-wrap">
+    <div class="logo-sub">Check Out</div>
+    <div class="logo-text">hitomiru</div>
   </div>
   <div class="load-bar-wrap"><div class="load-bar"></div></div>
   <div class="load-status" id="load-status">読み込み中</div>
@@ -313,85 +198,58 @@
 
 <!-- Error -->
 <div id="error-screen">
-  <div style="font-size:32px;">⚠️</div>
-  <div class="err-title">エラーが発生しました</div>
-  <div class="err-msg" id="error-msg">しばらく時間をおいて再度お試しください</div>
+  <div style="font-size:36px">⚠️</div>
+  <div style="font-size:16px;font-weight:800">エラーが発生しました</div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.7" id="error-msg">しばらくして再度お試しください</div>
 </div>
 
 <!-- Done -->
 <div id="done-screen">
   <div class="done-check">✓</div>
-  <div class="done-title">お疲れ様でした</div>
-  <div class="done-name" id="done-name"></div>
+  <div class="done-title">お疲れ様でした！</div>
+  <div class="done-sub" id="done-sub">コーチがすぐ確認します</div>
   <div class="done-stats">
-    <div class="done-stat-row">
-      <div class="done-stat-label">滞在時間</div>
-      <div class="done-stat-value" id="done-duration">—</div>
+    <div class="done-row">
+      <div class="done-row-label">滞在時間</div>
+      <div class="done-row-value" id="done-duration">—</div>
     </div>
-    <div class="done-stat-row">
-      <div class="done-stat-label">入館 → 退館</div>
-      <div class="done-stat-value" id="done-timerange">—</div>
+    <div class="done-row">
+      <div class="done-row-label">入館 → 退館</div>
+      <div class="done-row-value" id="done-range">—</div>
     </div>
-    <div class="done-stat-row">
-      <div class="done-stat-label">連続日数 🔥</div>
-      <div class="done-stat-value" id="done-streak">—</div>
+    <div class="done-row">
+      <div class="done-row-label">連続日数 🔥</div>
+      <div class="done-row-value" id="done-streak">—</div>
     </div>
-    <div class="done-stat-row">
-      <div class="done-stat-label">今週の達成数</div>
-      <div class="done-stat-value" id="done-week">— / 7</div>
+    <div class="done-row">
+      <div class="done-row-label">今週の達成</div>
+      <div class="done-row-value" id="done-week">— / 7</div>
     </div>
   </div>
-  <div class="done-message">コーチがすぐ確認します。<br>今日もよく動きました 💪</div>
+  <div class="done-msg">今日もよく動きました 💪<br>コーチからメッセージが届きます</div>
 </div>
 
 <!-- Main -->
 <div id="main">
-
   <div class="header">
-    <div>
-      <div class="header-eyebrow">Check Out</div>
-      <div class="header-logo">hitomiru</div>
+    <div class="header-left">
+      <div class="eyebrow">Check Out</div>
+      <div class="h-logo">hitomiru</div>
     </div>
     <div class="header-name" id="client-name"></div>
   </div>
 
-  <!-- Session状態 -->
+  <!-- Hero -->
   <div class="section">
-    <div class="section-eyebrow">Session</div>
-
-    <div class="session-status-card">
-
-      <!-- セッション進行中 -->
-      <div id="state-in-progress">
-        <div class="timer-label">経過時間</div>
-        <div class="timer-value" id="timer-display">00:00</div>
-        <div class="timer-since" id="timer-since"></div>
-        <div class="divider"></div>
-        <div class="checkin-row">
-          <div class="checkin-dot"></div>
-          <div class="checkin-text">入館時刻&nbsp;&nbsp;</div>
-          <div class="checkin-time" id="checkin-time">—</div>
-        </div>
-        <button class="btn-end" id="btn-end" onclick="handleCheckout()">
-          🏁 セッション終了
-        </button>
-      </div>
-
-      <!-- 未着手（着いたボタンを押していない） -->
-      <div id="state-not-started">
-        <div class="not-started-msg">
-          <div class="not-started-icon">🏋️</div>
-          <div class="not-started-title">まだ入館記録がありません</div>
-          <div class="not-started-sub">先に「📷 着いた」から<br>入館を記録してください</div>
-        </div>
-      </div>
-
+    <div class="sec-label">Session</div>
+    <div class="hero-card" id="hero-card">
+      <!-- JS で中身を書く -->
     </div>
   </div>
 
   <!-- Stats -->
   <div class="section pb">
-    <div class="section-eyebrow">Today's Stats</div>
+    <div class="sec-label">Today's Stats</div>
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-label">連続日数</div>
@@ -405,32 +263,32 @@
       </div>
     </div>
   </div>
-
 </div>
 
 <script>
-const LIFF_ID      = 'YOUR_LIFF_ID';   // ← GitHubで差し替え（checkout用）
+// ═══ CONFIG ═══════════════════════════════
+const LIFF_ID      = 'YOUR_LIFF_ID';   // ← checkout用LIFF IDに差し替え
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
-const LINE_EDGE_FN = `${SUPABASE_URL}/functions/v1/send-line-message`;
+const EDGE_FN      = `${SUPABASE_URL}/functions/v1/send-line-message`;
 const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
 
-const $ = id => document.getElementById(id);
-const DOW = ['日','月','火','水','木','金','土'];
-
+// ═══ STATE ════════════════════════════════
 let clientId   = null;
 let clientName = '';
 let lineUserId = null;
-let startedAt  = null;   // Date object
+let startedAt  = null;   // Date
+let logId      = null;
 let timerInterval = null;
 
-function setStatus(msg) { $('load-status').textContent = msg; }
-function showError(msg) {
+// ═══ HELPERS ══════════════════════════════
+const $ = id => document.getElementById(id);
+function setStatus(t) { $('load-status').textContent = t; }
+function showError(t) {
   $('loading-screen').classList.add('hidden');
-  $('error-msg').textContent = msg;
+  $('error-msg').textContent = t;
   $('error-screen').classList.add('visible');
 }
-
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
@@ -441,216 +299,202 @@ async function sbGet(path) {
 async function sbPatch(table, id, body) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
     method: 'PATCH',
-    headers: {
-      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json', Prefer: 'return=minimal'
-    },
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+               'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('PATCH HTTP ' + r.status);
+  if (!r.ok) throw new Error('PATCH ' + r.status);
 }
 async function sbInsert(table, body) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
-    headers: {
-      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json', Prefer: 'return=minimal'
-    },
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+               'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('INSERT HTTP ' + r.status);
+  if (!r.ok) throw new Error('INSERT ' + r.status);
 }
-
 function toDateStr(d) {
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function todayStr() { return toDateStr(new Date()); }
 function weekMonday() {
   const d = new Date(), day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0,0,0,0); return d;
+  d.setDate(d.getDate()-(day===0?6:day-1)); d.setHours(0,0,0,0); return d;
 }
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
 function fmtElapsed(ms) {
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
+  const t = Math.floor(ms/1000);
+  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-
-function startTimer() {
-  if (timerInterval) clearInterval(timerInterval);
-  timerInterval = setInterval(() => {
-    if (!startedAt) return;
-    $('timer-display').textContent = fmtElapsed(Date.now() - startedAt.getTime());
-  }, 1000);
-}
-
 function calcStreak(logs) {
+  // logs: [{date,status}] sorted desc
   let streak = 0;
   const today = todayStr();
-  let expectDate = new Date(); expectDate.setHours(0,0,0,0);
+  let expect = new Date(); expect.setHours(0,0,0,0);
   for (const log of logs) {
-    const logDate = new Date(log.date + 'T00:00:00'); logDate.setHours(0,0,0,0);
-    const diffDays = Math.round((expectDate - logDate) / 86400000);
-    if (diffDays > 1) break;
+    const ld = new Date(log.date+'T00:00:00'); ld.setHours(0,0,0,0);
+    const diff = Math.round((expect-ld)/86400000);
+    if (diff > 1) break;
     if (log.status === 'completed') {
       streak++;
-      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+      expect = new Date(ld); expect.setDate(ld.getDate()-1);
     } else if (log.date === today) {
-      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
-    } else { break; }
+      expect = new Date(ld); expect.setDate(ld.getDate()-1);
+    } else break;
   }
   return streak;
 }
 
+// ═══ TIMER ════════════════════════════════
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!startedAt) return;
+    const el = document.getElementById('timer-value');
+    if (el) el.textContent = fmtElapsed(Date.now()-startedAt.getTime());
+  }, 1000);
+}
+
+// ═══ RENDER HERO ══════════════════════════
+function renderHeroInProgress(log) {
+  startedAt = new Date(log.started_at);
+  $('hero-card').innerHTML = `
+    <div class="timer-label">経過時間</div>
+    <div class="timer-value" id="timer-value">${fmtElapsed(Date.now()-startedAt.getTime())}</div>
+    <div class="checkin-row">
+      <div class="checkin-dot"></div>
+      <div class="checkin-label">入館時刻</div>
+      <div class="checkin-time">&nbsp;${fmtTime(log.started_at)}</div>
+    </div>
+    <button class="btn-end" id="btn-end" onclick="handleCheckout()">🏁 セッション終了</button>
+  `;
+  startTimer();
+}
+function renderHeroNotStarted() {
+  $('hero-card').innerHTML = `
+    <div class="not-started-icon">🏋️</div>
+    <div class="not-started-title">チェックインがまだです</div>
+    <div class="not-started-sub">先に「📷 着いた」から<br>入館を記録してください</div>
+  `;
+}
+function renderHeroCompleted(log) {
+  const min = log.started_at && log.completed_at
+    ? Math.round((new Date(log.completed_at)-new Date(log.started_at))/60000) : 0;
+  $('hero-card').innerHTML = `
+    <div class="already-icon">✅</div>
+    <div class="already-title">本日のセッション完了</div>
+    <div class="already-sub">${fmtTime(log.started_at)} → ${fmtTime(log.completed_at)}（${min}分）</div>
+  `;
+}
+
+// ═══ CHECKOUT ═════════════════════════════
 async function handleCheckout() {
   const btn = $('btn-end');
-  btn.disabled = true;
-  btn.textContent = '記録中...';
-
+  btn.disabled = true; btn.textContent = '記録中...';
   const now = new Date().toISOString();
   const today = todayStr();
-
   try {
-    // daily_logs 更新
-    const logs = await sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=id`);
-    if (!logs.length) throw new Error('ログが見つかりません');
-    const logId = logs[0].id;
-
-    await sbPatch('daily_logs', logId, {
-      status: 'completed',
-      completed_at: now
-    });
-
-    // events 記録
+    await sbPatch('daily_logs', logId, { status: 'completed', completed_at: now });
     await sbInsert('events', {
-      client_id: clientId,
-      date: today,
+      client_id: clientId, date: today,
       type: 'user_completed',
-      message: `${clientName}さんが退館しました`,
-      is_new: true
+      message: `${clientName}さんが退館しました`, is_new: true
     });
-
-    // LINE通知
-    const min = startedAt ? Math.round((new Date(now) - startedAt) / 60000) : 0;
-    const msg = `🏁 ${clientName}さん、お疲れ様でした！\n滞在時間：${min}分\nコーチが確認次第、メッセージをお送りしますね 💪`;
-    await fetch(LINE_EDGE_FN, {
+    const min = startedAt ? Math.round((new Date(now)-startedAt)/60000) : 0;
+    const msg = `🏁 ${clientName}さん、お疲れ様でした！\n滞在時間：${min}分\nコーチが確認次第メッセージをお送りしますね 💪`;
+    fetch(EDGE_FN, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json',
-                 Authorization: 'Bearer ' + SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+SUPABASE_KEY },
       body: JSON.stringify({ lineUserId, message: msg })
-    });
+    }).catch(()=>{});
 
-    // 完了画面
-    showDone(now, min, today);
-
+    await showDone(now, min, today);
   } catch(e) {
-    btn.disabled = false;
-    btn.textContent = '🏁 セッション終了';
-    alert('エラーが発生しました: ' + e.message);
+    btn.disabled = false; btn.textContent = '🏁 セッション終了';
+    alert('エラー: ' + e.message);
   }
 }
 
 async function showDone(completedIso, min, today) {
   if (timerInterval) clearInterval(timerInterval);
-
-  // streak & week count
   const [allLogs, weekLogs] = await Promise.all([
     sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status&order=date.desc&limit=200`),
     sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${toDateStr(weekMonday())}&select=date,status&order=date.desc`)
-  ]).catch(() => [[], []]);
+  ]).catch(() => [[],[]]);
+  const streak   = calcStreak(allLogs);
+  const weekDone = weekLogs.filter(l=>l.status==='completed').length;
 
-  const streak = calcStreak(allLogs);
-  const weekDone = weekLogs.filter(l => l.status === 'completed').length;
-
-  $('done-name').textContent = clientName + ' さん';
+  $('done-sub').textContent = clientName + ' さん';
   $('done-duration').textContent = min + ' 分';
-  $('done-timerange').textContent = fmtTime(startedAt?.toISOString()) + ' → ' + fmtTime(completedIso);
-  $('done-streak').textContent = streak + ' days';
-  $('done-week').textContent = weekDone + ' / 7';
+  $('done-range').textContent    = fmtTime(startedAt?.toISOString()) + ' → ' + fmtTime(completedIso);
+  $('done-streak').textContent   = streak + ' days';
+  $('done-week').textContent     = weekDone + ' / 7';
 
-  $('main').classList.remove('visible', 'shown');
+  $('main').classList.remove('visible','shown');
   $('done-screen').classList.add('visible');
-  requestAnimationFrame(() => setTimeout(() => $('done-screen').classList.add('shown'), 20));
+  requestAnimationFrame(()=>setTimeout(()=>$('done-screen').classList.add('shown'),20));
 }
 
-// ── MAIN FLOW ──────────────────────────────
+// ═══ MAIN ═════════════════════════════════
 async function main() {
   setStatus('起動中...');
 
-  // LIFF
-  let liffOk = false;
+  // LIFF（失敗してもフォールバック）
   try {
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
-      new Promise((_, rej) => setTimeout(() => rej(), 5000))
+      new Promise((_,rej)=>setTimeout(rej,5000))
     ]);
-    liffOk = true;
+    if (liff.isLoggedIn()) lineUserId = (await liff.getProfile()).userId;
   } catch(_) {}
-
-  if (liffOk && liff.isLoggedIn()) {
-    try { lineUserId = (await liff.getProfile()).userId; } catch(_) {}
-  }
   if (!lineUserId) lineUserId = TEST_USER_ID;
 
   // Client
   setStatus('データ取得中...');
   try {
     const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
-    if (!clients.length) throw new Error('このLINEアカウントは登録されていません');
-    clientId   = clients[0].id;
-    clientName = clients[0].name;
+    if (!clients.length) throw new Error('このアカウントは登録されていません');
+    clientId = clients[0].id; clientName = clients[0].name;
     $('client-name').textContent = clientName;
   } catch(e) { showError(e.message); return; }
 
-  // Today's log
+  // Logs
   const today = todayStr();
   try {
-    const [todayLog, allLogs, weekLogs] = await Promise.all([
+    const [todayLogs, allLogs, weekLogs] = await Promise.all([
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=*&limit=1`),
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status&order=date.desc&limit=200`),
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${toDateStr(weekMonday())}&select=date,status&order=date.desc`),
     ]);
 
-    // streak & week stats
-    const streak   = calcStreak(allLogs);
-    const weekDone = weekLogs.filter(l => l.status === 'completed').length;
-    $('stat-streak').textContent = streak;
-    $('stat-week').textContent   = weekDone;
+    // Stats
+    $('stat-streak').textContent = calcStreak(allLogs);
+    $('stat-week').textContent   = weekLogs.filter(l=>l.status==='completed').length;
 
-    // セッション状態
-    const log = todayLog[0];
-    if (log && log.started_at && log.status === 'in_progress') {
-      startedAt = new Date(log.started_at);
-      $('checkin-time').textContent = fmtTime(log.started_at);
-      $('timer-since').textContent  = '入館から計測中';
-      $('timer-display').textContent = fmtElapsed(Date.now() - startedAt.getTime());
-      $('state-in-progress').classList.add('active');
-      startTimer();
-    } else if (log && log.status === 'completed') {
-      // すでに完了済み → 完了画面へ
-      const min = log.started_at && log.completed_at
-        ? Math.round((new Date(log.completed_at) - new Date(log.started_at)) / 60000) : 0;
-      startedAt = log.started_at ? new Date(log.started_at) : null;
-      showDone(log.completed_at, min, today);
-      $('loading-screen').classList.add('hidden');
-      return;
+    const log = todayLogs[0];
+    if (!log || !log.started_at) {
+      renderHeroNotStarted();
+    } else if (log.status === 'in_progress') {
+      logId = log.id;
+      renderHeroInProgress(log);
+    } else if (log.status === 'completed') {
+      renderHeroCompleted(log);
     } else {
-      $('state-not-started').classList.add('active');
+      renderHeroNotStarted();
     }
 
   } catch(e) { showError('データ取得に失敗しました: ' + e.message); return; }
 
   $('loading-screen').classList.add('hidden');
   $('main').classList.add('visible');
-  requestAnimationFrame(() => setTimeout(() => $('main').classList.add('shown'), 20));
+  requestAnimationFrame(()=>setTimeout(()=>$('main').classList.add('shown'),20));
 }
 
 window.addEventListener('load', main);

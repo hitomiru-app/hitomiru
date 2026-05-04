@@ -5,307 +5,149 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ヒトミル - レポート</title>
   <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:        #111113;
-      --bg2:       #1A1A1D;
-      --bg3:       #242428;
-      --border:    #2E2E34;
-      --gold:      #C9A84C;
-      --gold2:     #E8CC80;
-      --gold3:     #F5E4A8;
-      --green:     #4CAF82;
-      --text:      #F2EEE6;
-      --text2:     rgba(242,238,230,0.55);
-      --text3:     rgba(242,238,230,0.3);
-      --radius:    18px;
-      --radius-sm: 12px;
+      --bg:      #1C1C1E;
+      --bg2:     #2C2C2E;
+      --bg3:     #3A3A3C;
+      --yellow:  #FFC107;
+      --yellow2: #FFD54F;
+      --green:   #34C759;
+      --text:    #FFFFFF;
+      --text2:   rgba(235,235,245,0.6);
+      --text3:   rgba(235,235,245,0.35);
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans','Noto Sans JP',sans-serif; min-height: 100dvh; }
 
-    html, body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
-      min-height: 100dvh;
-      overflow-x: hidden;
-    }
-
-    /* ═══════════════════════════════════════
-       LOADING
-    ═══════════════════════════════════════ */
+    /* ── LOADING ── */
     #loading-screen {
-      position: fixed; inset: 0;
-      background: var(--bg);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 28px; z-index: 100;
-      transition: opacity .5s ease;
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100;
+      transition: opacity .4s;
     }
-    #loading-screen.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .load-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 32px; font-weight: 300; letter-spacing: 6px;
-      background: linear-gradient(135deg, var(--gold), var(--gold3), var(--gold));
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    .logo-sub  { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 8px; text-align: center; }
+    .logo-text {
+      font-size: 30px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-transform: lowercase;
     }
-    .load-bar-wrap {
-      width: 120px; height: 1px;
-      background: var(--border);
-      border-radius: 99px; overflow: hidden;
-    }
+    .load-bar-wrap { width: 100px; height: 2px; background: var(--bg3); border-radius: 99px; overflow: hidden; }
     .load-bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--gold), var(--gold3));
-      border-radius: 99px;
-      animation: loadSlide 1.6s ease-in-out infinite;
+      height: 100%; background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      animation: barSlide 1.4s ease-in-out infinite;
     }
-    @keyframes loadSlide {
-      0%   { transform: translateX(-100%); }
-      50%  { transform: translateX(0%); }
-      100% { transform: translateX(100%); }
-    }
-    .load-status {
-      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
-      color: var(--text3); font-weight: 500;
-    }
+    @keyframes barSlide { 0%{transform:translateX(-100%)} 50%{transform:translateX(0)} 100%{transform:translateX(100%)} }
+    .load-status { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); font-weight: 600; }
 
-    /* ═══════════════════════════════════════
-       MAIN
-    ═══════════════════════════════════════ */
-    #main {
-      display: none;
-      flex-direction: column;
-      padding-bottom: 60px;
-      opacity: 0;
-      transform: translateY(12px);
-      transition: opacity .5s ease, transform .5s ease;
+    /* ── ERROR ── */
+    #error-screen {
+      display: none; position: fixed; inset: 0; background: var(--bg);
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 40px; text-align: center;
     }
+    #error-screen.visible { display: flex; }
+
+    /* ── MAIN ── */
+    #main { display: none; flex-direction: column; min-height: 100dvh; opacity: 0; transform: translateY(10px); transition: opacity .4s, transform .4s; padding-bottom: 48px; }
     #main.visible { display: flex; }
     #main.shown   { opacity: 1; transform: none; }
 
-    /* ═══════════════════════════════════════
-       HEADER
-    ═══════════════════════════════════════ */
-    .header {
-      padding: 56px 24px 32px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: flex-end; justify-content: space-between;
-    }
-    .header-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 28px; font-weight: 300; letter-spacing: 4px;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+    /* ── HEADER ── */
+    .header { padding: 52px 22px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bg3); }
+    .header-left .eyebrow { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-bottom: 4px; }
+    .header-left .h-logo {
+      font-size: 22px; font-weight: 800; letter-spacing: 1.5px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      text-transform: lowercase;
     }
-    .header-eyebrow {
-      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--text3); font-weight: 600; margin-bottom: 6px;
-    }
-    .header-name {
-      font-size: 12px; color: var(--text2); font-weight: 500;
-      text-align: right;
-    }
+    .header-name { font-size: 12px; color: var(--text2); font-weight: 600; }
 
-    /* ═══════════════════════════════════════
-       SECTION
-    ═══════════════════════════════════════ */
-    .section {
-      padding: 32px 24px 0;
-    }
-
-    .section-eyebrow {
-      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-      color: var(--gold); font-weight: 700; margin-bottom: 20px;
+    /* ── SECTION ── */
+    .section { padding: 28px 22px 0; }
+    .sec-label {
+      font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--yellow); font-weight: 700; margin-bottom: 16px;
       display: flex; align-items: center; gap: 10px;
     }
-    .section-eyebrow::after {
-      content: '';
-      flex: 1; height: 1px;
-      background: linear-gradient(90deg, var(--border), transparent);
-    }
+    .sec-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--bg3), transparent); }
 
-    /* ═══════════════════════════════════════
-       WEEK PILLS
-    ═══════════════════════════════════════ */
-    .week-row {
-      display: flex; gap: 6px;
-    }
+    /* ── WEEK PILLS ── */
+    .week-row { display: flex; gap: 6px; }
     .day-pill {
-      flex: 1;
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      padding: 12px 4px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      transition: all .25s;
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 12px 4px; background: var(--bg2); border: 1px solid var(--bg3); border-radius: 12px;
+      transition: all .2s;
     }
-    .day-pill.done {
-      background: rgba(201,168,76,0.08);
-      border-color: rgba(201,168,76,0.35);
-    }
-    .day-pill.today {
-      background: rgba(201,168,76,0.05);
-      border-color: rgba(201,168,76,0.2);
-    }
+    .day-pill.done   { border-color: rgba(255,193,7,.5); background: rgba(255,193,7,.08); }
+    .day-pill.today  { border-color: rgba(255,193,7,.25); }
     .day-pill.future { opacity: .3; }
+    .day-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); font-weight: 700; }
+    .day-mark  { font-size: 15px; line-height: 1; }
+    .day-pill.done  .day-mark { color: var(--yellow); }
+    .day-pill.today .day-mark { color: var(--text3); }
+    .day-pill.past  .day-mark { color: var(--bg3); }
 
-    .day-label {
-      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
-      color: var(--text3); font-weight: 700;
+    .progress-wrap { margin-top: 14px; height: 3px; background: var(--bg3); border-radius: 99px; overflow: hidden; }
+    .progress-bar  {
+      height: 100%; background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      border-radius: 99px; transition: width .8s cubic-bezier(.34,1.56,.64,1);
     }
-    .day-mark { font-size: 14px; line-height: 1; }
-    .day-pill.done  .day-mark { color: var(--gold); }
-    .day-pill.today .day-mark { color: var(--gold2); opacity: .6; }
-    .day-pill.past  .day-mark { color: var(--text3); }
+    .progress-meta { margin-top: 10px; display: flex; justify-content: space-between; }
+    .progress-count { font-size: 13px; font-weight: 700; }
+    .progress-count span { color: var(--yellow2); }
+    .progress-pct { font-size: 12px; color: var(--text3); font-weight: 600; }
 
-    /* Progress */
-    .progress-wrap {
-      margin-top: 16px;
-      height: 2px;
-      background: var(--border);
-      border-radius: 99px; overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--gold), var(--gold3));
-      border-radius: 99px;
-      transition: width .8s cubic-bezier(.34,1.56,.64,1);
-    }
-    .progress-meta {
-      margin-top: 12px;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .progress-count {
-      font-size: 13px; font-weight: 700; color: var(--text);
-    }
-    .progress-count span { color: var(--gold2); }
-    .progress-pct {
-      font-size: 12px; color: var(--text3); font-weight: 500;
-    }
-
-    /* ═══════════════════════════════════════
-       RECORDS
-    ═══════════════════════════════════════ */
-    .records-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-    }
+    /* ── RECORDS ── */
+    .records-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
     .record-card {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 18px 12px 16px;
-      display: flex; flex-direction: column; align-items: center;
-      gap: 8px; position: relative; overflow: hidden;
+      background: var(--bg2); border: 1px solid var(--bg3); border-radius: 14px;
+      padding: 16px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      position: relative; overflow: hidden;
     }
     .record-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
-      opacity: .5;
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--yellow), transparent); opacity: .5;
     }
-    .record-icon {
-      font-size: 18px; line-height: 1;
-    }
+    .record-icon  { font-size: 20px; line-height: 1; }
     .record-value {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 32px; font-weight: 500; line-height: 1;
-      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      font-size: 30px; font-weight: 800; line-height: 1;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
-    .record-unit {
-      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
-      color: var(--text3); font-weight: 600; margin-top: -4px;
-    }
-    .record-label {
-      font-size: 10px; color: var(--text2); font-weight: 500;
-      text-align: center; line-height: 1.4;
-    }
+    .record-unit  { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); font-weight: 700; margin-top: -2px; }
+    .record-label { font-size: 10px; color: var(--text2); font-weight: 600; text-align: center; line-height: 1.3; }
 
-    /* ═══════════════════════════════════════
-       SESSIONS
-    ═══════════════════════════════════════ */
+    /* ── SESSIONS ── */
     .session-list {
-      display: flex; flex-direction: column;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
+      border: 1px solid var(--bg3); border-radius: 16px; overflow: hidden;
     }
     .session-card {
-      display: flex; align-items: center; gap: 16px;
-      padding: 16px 18px;
-      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px;
+      padding: 15px 18px; border-bottom: 1px solid var(--bg3);
       background: var(--bg2);
       opacity: 0; transform: translateY(6px);
-      transition: opacity .35s ease, transform .35s ease;
+      transition: opacity .3s, transform .3s;
     }
     .session-card:last-child { border-bottom: none; }
     .session-card.shown { opacity: 1; transform: none; }
 
-    .session-date-col {
-      min-width: 36px; text-align: center;
-    }
-    .session-date-num {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 26px; font-weight: 500; line-height: 1;
-      color: var(--gold2);
-    }
-    .session-date-dow {
-      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
-      color: var(--text3); font-weight: 700;
-    }
-    .session-divider {
-      width: 1px; height: 32px;
-      background: var(--border);
-    }
-    .session-info { flex: 1; }
-    .session-duration {
-      font-size: 14px; font-weight: 700; color: var(--text);
-      line-height: 1;
-    }
-    .session-range {
-      font-size: 11px; color: var(--text3);
-      margin-top: 3px; font-weight: 500;
-    }
-    .session-check {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      background: rgba(76,175,130,0.12);
-      border: 1px solid rgba(76,175,130,0.3);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px; color: var(--green);
+    .s-date     { min-width: 34px; text-align: center; }
+    .s-date-num { font-size: 24px; font-weight: 800; line-height: 1; color: var(--yellow2); }
+    .s-date-dow { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); font-weight: 700; }
+    .s-div      { width: 1px; height: 30px; background: var(--bg3); }
+    .s-info     { flex: 1; }
+    .s-duration { font-size: 14px; font-weight: 700; }
+    .s-range    { font-size: 11px; color: var(--text3); margin-top: 2px; font-weight: 500; }
+    .s-badge    {
+      padding: 4px 10px; border-radius: 99px;
+      font-size: 11px; font-weight: 700;
+      background: rgba(52,199,89,.1); color: var(--green);
     }
 
-    .empty-state {
-      padding: 48px 24px;
-      text-align: center;
-      color: var(--text3); font-size: 13px; line-height: 1.8;
-    }
-    .empty-state-icon { font-size: 32px; margin-bottom: 12px; }
-
-    /* ═══════════════════════════════════════
-       ERROR
-    ═══════════════════════════════════════ */
-    #error-screen {
-      display: none;
-      position: fixed; inset: 0;
-      background: var(--bg);
-      flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 16px; padding: 40px; text-align: center;
-    }
-    #error-screen.visible { display: flex; }
-    .err-title { font-size: 16px; font-weight: 700; color: var(--text); }
-    .err-msg   { font-size: 13px; color: var(--text3); line-height: 1.7; }
+    .empty-state { padding: 48px 20px; text-align: center; color: var(--text3); font-size: 13px; line-height: 1.8; }
+    .empty-icon  { font-size: 36px; margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -313,8 +155,8 @@
 <!-- Loading -->
 <div id="loading-screen">
   <div>
-    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);text-align:center;margin-bottom:10px;font-weight:600;">MY REPORT</div>
-    <div class="load-logo">hitomiru</div>
+    <div class="logo-sub">My Report</div>
+    <div class="logo-text">hitomiru</div>
   </div>
   <div class="load-bar-wrap"><div class="load-bar"></div></div>
   <div class="load-status" id="load-status">読み込み中</div>
@@ -322,24 +164,25 @@
 
 <!-- Error -->
 <div id="error-screen">
-  <div style="font-size:32px;">⚠️</div>
-  <div class="err-title">データを取得できませんでした</div>
-  <div class="err-msg" id="error-msg">しばらく時間をおいて再度お試しください</div>
+  <div style="font-size:36px">⚠️</div>
+  <div style="font-size:16px;font-weight:800">データを取得できませんでした</div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.7" id="error-msg">しばらくして再度お試しください</div>
 </div>
 
 <!-- Main -->
 <div id="main">
 
   <div class="header">
-    <div>
-      <div class="header-eyebrow">My Report</div>
-      <div class="header-logo">hitomiru</div>
+    <div class="header-left">
+      <div class="eyebrow">My Report</div>
+      <div class="h-logo">hitomiru</div>
     </div>
     <div class="header-name" id="client-name"></div>
   </div>
 
+  <!-- This Week -->
   <div class="section">
-    <div class="section-eyebrow">This Week</div>
+    <div class="sec-label">This Week</div>
     <div class="week-row" id="week-row"></div>
     <div class="progress-wrap">
       <div class="progress-bar" id="progress-bar" style="width:0%"></div>
@@ -350,50 +193,52 @@
     </div>
   </div>
 
+  <!-- Records -->
   <div class="section">
-    <div class="section-eyebrow">Records</div>
+    <div class="sec-label">Records</div>
     <div class="records-grid">
       <div class="record-card">
         <div class="record-icon">🔥</div>
-        <div class="record-value" id="rec-streak">—</div>
+        <div class="record-value" id="rec-streak">0</div>
         <div class="record-unit">days</div>
         <div class="record-label">連続日数</div>
       </div>
       <div class="record-card">
         <div class="record-icon">🏆</div>
-        <div class="record-value" id="rec-month">—</div>
+        <div class="record-value" id="rec-month">0</div>
         <div class="record-unit">回</div>
         <div class="record-label">今月達成数</div>
       </div>
       <div class="record-card">
         <div class="record-icon">⏱</div>
-        <div class="record-value" id="rec-hours">—</div>
+        <div class="record-value" id="rec-hours">0</div>
         <div class="record-unit">h</div>
         <div class="record-label">累計滞在</div>
       </div>
     </div>
   </div>
 
-  <div class="section" style="padding-bottom:0;">
-    <div class="section-eyebrow">Recent Sessions</div>
+  <!-- Recent Sessions -->
+  <div class="section">
+    <div class="sec-label">Recent Sessions</div>
     <div class="session-list" id="session-list"></div>
   </div>
 
 </div>
 
 <script>
-const LIFF_ID      = '2009941074-uSKRFkFW';
+// ═══ CONFIG ═══════════════════════════════
+const LIFF_ID      = 'YOUR_LIFF_ID';   // ← report用LIFF IDに差し替え
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
 const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
-
-const $ = id => document.getElementById(id);
 const DOW = ['日','月','火','水','木','金','土'];
 
-function setStatus(msg) { $('load-status').textContent = msg; }
-function showError(msg) {
+const $ = id => document.getElementById(id);
+function setStatus(t) { $('load-status').textContent = t; }
+function showError(t) {
   $('loading-screen').classList.add('hidden');
-  $('error-msg').textContent = msg;
+  $('error-msg').textContent = t;
   $('error-screen').classList.add('visible');
 }
 async function sbGet(path) {
@@ -404,150 +249,169 @@ async function sbGet(path) {
   return r.json();
 }
 function toDateStr(d) {
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function todayStr() { return toDateStr(new Date()); }
 function weekMonday() {
   const d = new Date(), day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  d.setHours(0,0,0,0); return d;
+  d.setDate(d.getDate()-(day===0?6:day-1)); d.setHours(0,0,0,0); return d;
 }
 function monthStart() {
   const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return toDateStr(d);
 }
 function durationMin(log) {
   if (!log.started_at || !log.completed_at) return null;
-  return Math.round((new Date(log.completed_at) - new Date(log.started_at)) / 60000);
+  return Math.round((new Date(log.completed_at)-new Date(log.started_at))/60000);
 }
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
-  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
+
+// streak: completed が連続している日数（今日未完了でも昨日以前が継続なら維持）
 function calcStreak(logs) {
   let streak = 0;
   const today = todayStr();
-  let expectDate = new Date(); expectDate.setHours(0,0,0,0);
-
+  let expect = new Date(); expect.setHours(0,0,0,0);
   for (const log of logs) {
-    const logDate = new Date(log.date + 'T00:00:00'); logDate.setHours(0,0,0,0);
-    const diffDays = Math.round((expectDate - logDate) / 86400000);
-    if (diffDays > 1) break;
+    const ld = new Date(log.date+'T00:00:00'); ld.setHours(0,0,0,0);
+    const diff = Math.round((expect-ld)/86400000);
+    if (diff > 1) break;
     if (log.status === 'completed') {
       streak++;
-      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+      expect = new Date(ld); expect.setDate(ld.getDate()-1);
     } else if (log.date === today) {
-      // 今日未完了はスキップして前日チェックへ
-      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
-    } else {
-      break;
-    }
+      // 今日のログが completed でない場合は飛ばして前日へ
+      expect = new Date(ld); expect.setDate(ld.getDate()-1);
+    } else break;
   }
   return streak;
 }
 
+// ─── RENDER ───────────────────────────────
 function renderWeek(logs) {
   const logMap = {};
   logs.forEach(l => logMap[l.date] = l.status);
-  const mon = weekMonday(), today = todayStr();
-  const DOW_W = ['月','火','水','木','金','土','日'];
+  const mon   = weekMonday(), today = todayStr();
+  const LABELS = ['月','火','水','木','金','土','日'];
   const row = $('week-row'); row.innerHTML = '';
   let done = 0;
 
   for (let i = 0; i < 7; i++) {
-    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const d = new Date(mon); d.setDate(mon.getDate()+i);
     const ds = toDateStr(d);
-    const isDone = logMap[ds] === 'completed';
-    const isToday = ds === today, isFuture = ds > today;
+    const isDone   = logMap[ds] === 'completed';
+    const isToday  = ds === today;
+    const isFuture = ds > today;
     if (isDone) done++;
 
+    const cls  = isDone ? 'done' : isToday ? 'today' : isFuture ? 'future' : 'past';
+    const mark = isDone ? '✓' : '·';
     const el = document.createElement('div');
-    el.className = 'day-pill ' + (isDone ? 'done' : isToday ? 'today' : isFuture ? 'future' : 'past');
-    el.innerHTML = `<div class="day-label">${DOW_W[i]}</div><div class="day-mark">${isDone ? '✓' : '·'}</div>`;
+    el.className = 'day-pill ' + cls;
+    el.innerHTML = `<div class="day-label">${LABELS[i]}</div><div class="day-mark">${mark}</div>`;
     row.appendChild(el);
   }
-  const pct = Math.round(done / 7 * 100);
+
+  const pct = Math.round(done/7*100);
   $('week-done').textContent = done;
   $('week-pct').textContent  = pct + '%';
   setTimeout(() => { $('progress-bar').style.width = pct + '%'; }, 80);
 }
 
 function renderRecords(allLogs, monthLogs) {
-  const sorted = [...allLogs].sort((a,b) => b.date.localeCompare(a.date));
-  $('rec-streak').textContent = calcStreak(sorted);
-  $('rec-month').textContent  = monthLogs.filter(l => l.status === 'completed').length;
-  const totalMin = allLogs.reduce((s,l) => s + (durationMin(l)||0), 0);
-  $('rec-hours').textContent  = (totalMin/60).toFixed(1);
+  // streak には allLogs (全期間) を使う
+  const sortedAll = [...allLogs].sort((a,b) => b.date.localeCompare(a.date));
+  $('rec-streak').textContent = calcStreak(sortedAll);
+
+  // 今月完了数
+  $('rec-month').textContent = monthLogs.filter(l => l.status === 'completed').length;
+
+  // 累計滞在時間（completed & started_at & completed_at があるもの）
+  const totalMin = allLogs.reduce((sum, l) => sum + (durationMin(l) || 0), 0);
+  $('rec-hours').textContent = (totalMin / 60).toFixed(1);
 }
 
 function renderSessions(allLogs) {
   const sessions = allLogs
-    .filter(l => l.status === 'completed' && l.started_at)
-    .sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
-  const list = $('session-list'); list.innerHTML = '';
+    .filter(l => l.status === 'completed' && l.started_at && l.completed_at)
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .slice(0, 10);
+
+  const list = $('session-list');
+  list.innerHTML = '';
+
   if (!sessions.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💪</div>まだセッションの記録がありません。<br>ジムに行ったら記録が残ります。</div>`;
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div>まだセッションの記録がありません。<br>ジムに行ったら記録が残ります。</div>`;
     return;
   }
+
   sessions.forEach((log, i) => {
-    const d = new Date(log.date + 'T00:00:00'), min = durationMin(log);
+    const d   = new Date(log.date+'T00:00:00');
+    const min = durationMin(log);
     const card = document.createElement('div');
     card.className = 'session-card';
     card.innerHTML = `
-      <div class="session-date-col">
-        <div class="session-date-num">${d.getDate()}</div>
-        <div class="session-date-dow">${DOW[d.getDay()]}</div>
+      <div class="s-date">
+        <div class="s-date-num">${d.getDate()}</div>
+        <div class="s-date-dow">${DOW[d.getDay()]}</div>
       </div>
-      <div class="session-divider"></div>
-      <div class="session-info">
-        <div class="session-duration">${min != null ? min + ' 分' : '—'}</div>
-        <div class="session-range">${fmtTime(log.started_at)} — ${fmtTime(log.completed_at)}</div>
+      <div class="s-div"></div>
+      <div class="s-info">
+        <div class="s-duration">${min != null ? min + ' 分' : '—'}</div>
+        <div class="s-range">${fmtTime(log.started_at)} → ${fmtTime(log.completed_at)}</div>
       </div>
-      <div class="session-check">✓</div>
+      <div class="s-badge">✓ 完了</div>
     `;
     list.appendChild(card);
-    setTimeout(() => card.classList.add('shown'), 80 + i * 45);
+    setTimeout(() => card.classList.add('shown'), 60 + i * 40);
   });
 }
 
+// ─── MAIN ─────────────────────────────────
 async function main() {
   setStatus('起動中...');
 
-  // LIFF init — タイムアウト付き、失敗してもフォールバックへ
+  // LIFF（失敗してもフォールバック）
   let lineUserId = null;
   try {
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+      new Promise((_,rej) => setTimeout(rej, 5000))
     ]);
-    if (liff.isLoggedIn()) {
-      const profile = await liff.getProfile();
-      lineUserId = profile.userId;
-    }
-  } catch(_) { /* フォールバックへ */ }
-
+    if (liff.isLoggedIn()) lineUserId = (await liff.getProfile()).userId;
+  } catch(_) {}
   if (!lineUserId) lineUserId = TEST_USER_ID;
 
+  // Client
   setStatus('データ取得中...');
   let clientId = null;
   try {
     const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
-    if (!clients.length) throw new Error('このLINEアカウントは登録されていません');
+    if (!clients.length) throw new Error('このアカウントは登録されていません');
     clientId = clients[0].id;
     $('client-name').textContent = clients[0].name;
   } catch(e) { showError(e.message); return; }
 
+  // Data（3本まとめて取得）
   try {
     const monDs  = toDateStr(weekMonday());
     const monDs2 = monthStart();
+
     const [weekLogs, monthLogs, allLogs] = await Promise.all([
+      // 今週（completed判定用）
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs}&select=date,status&order=date.desc`),
+      // 今月（今月達成数）
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs2}&select=date,status&order=date.desc`),
-      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status,started_at,completed_at&order=date.desc&limit=200`),
+      // 全期間（streak・累計・セッション履歴）— started_at/completed_at も必要
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status,started_at,completed_at&order=date.desc&limit=500`),
     ]);
+
     renderWeek(weekLogs);
     renderRecords(allLogs, monthLogs);
     renderSessions(allLogs);
+
   } catch(e) { showError('データ取得に失敗しました: ' + e.message); return; }
 
   $('loading-screen').classList.add('hidden');
