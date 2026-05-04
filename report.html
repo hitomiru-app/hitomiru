@@ -1,377 +1,561 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1a1a1a">
-<title>ヒトミル - レポート</title>
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    width: 100%; min-height: 100vh; min-height: 100dvh;
-    background: #0a0a0a; color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
-  }
-  .container {
-    max-width: 600px; margin: 0 auto;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: max(40px, env(safe-area-inset-bottom));
-  }
-  .header {
-    padding: 20px 24px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .logo { font-size: 18px; font-weight: 700; letter-spacing: 0.05em; }
-  .logo .accent { color: #FFB800; }
-  .step-indicator { font-size: 13px; color: #888; letter-spacing: 0.1em; }
-  .greeting { padding: 16px 24px 32px; }
-  .greeting-text { font-size: 22px; font-weight: 700; line-height: 1.4; }
-  .section { padding: 0 24px 32px; }
-  .section-title {
-    font-size: 12px; color: #FFB800;
-    letter-spacing: 0.15em; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .section-title::after {
-    content: ''; flex: 1; height: 1px;
-    background: rgba(255, 184, 0, 0.2);
-  }
-  .week-card {
-    background: linear-gradient(135deg, rgba(255, 184, 0, 0.15), rgba(255, 184, 0, 0.05));
-    border: 1px solid rgba(255, 184, 0, 0.3);
-    border-radius: 16px; padding: 24px; margin-bottom: 16px;
-  }
-  .week-summary {
-    display: flex; justify-content: space-between;
-    align-items: baseline; margin-bottom: 4px;
-  }
-  .week-label { font-size: 13px; color: #aaa; }
-  .week-progress { font-size: 28px; font-weight: 700; }
-  .week-progress-total { font-size: 16px; color: #888; font-weight: 400; }
-  .week-bar {
-    height: 8px; background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px; overflow: hidden; margin-top: 12px;
-  }
-  .week-bar-fill {
-    height: 100%; background: #FFB800;
-    border-radius: 4px; transition: width 0.5s ease;
-  }
-  .week-days { display: flex; gap: 4px; margin-top: 16px; }
-  .day-pill {
-    flex: 1; padding: 8px 4px; text-align: center;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 8px; font-size: 11px;
-  }
-  .day-pill.done { background: rgba(255, 184, 0, 0.2); color: #FFB800; }
-  .day-pill.scheduled { background: rgba(255, 255, 255, 0.08); color: #fff; }
-  .day-pill.missed { background: rgba(255, 69, 58, 0.14); color: #ff8888; }
-  .day-pill.rescheduled { background: rgba(100, 200, 255, 0.12); color: #80d8ff; }
-  .day-pill.today { border: 1px solid rgba(255, 184, 0, 0.5); }
-  .day-label { color: #888; font-size: 10px; margin-bottom: 2px; }
-  .day-pill.done .day-label { color: #FFB800; }
-  .day-num { font-weight: 600; }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-  .stat-box {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px; padding: 16px 8px; text-align: center;
-  }
-  .stat-label {
-    font-size: 10px; color: #888;
-    letter-spacing: 0.1em; margin-bottom: 6px;
-  }
-  .stat-value { font-size: 22px; font-weight: 700; line-height: 1; }
-  .stat-unit { font-size: 11px; color: #888; margin-left: 2px; font-weight: 400; }
-  .history-list { display: flex; flex-direction: column; gap: 8px; }
-  .history-item {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px; padding: 14px 16px;
-    display: flex; align-items: center; gap: 12px;
-  }
-  .history-status {
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; flex-shrink: 0;
-  }
-  .history-status.completed { background: rgba(255, 184, 0, 0.2); }
-  .history-status.in-progress { background: rgba(100, 200, 255, 0.15); }
-  .history-info { flex: 1; min-width: 0; }
-  .history-date { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-  .history-time { font-size: 12px; color: #888; }
-  .history-duration {
-    font-size: 16px; font-weight: 700; color: #FFB800;
-    flex-shrink: 0;
-  }
-  .history-duration-unit { font-size: 11px; color: #888; margin-left: 1px; font-weight: 400; }
-  .empty-state { text-align: center; padding: 32px 16px; color: #666; font-size: 13px; }
-  .loading-overlay {
-    position: fixed; inset: 0; background: rgba(10, 10, 10, 0.95);
-    backdrop-filter: blur(8px); display: flex;
-    flex-direction: column; align-items: center; justify-content: center; z-index: 100;
-  }
-  .loading-overlay.hidden { display: none; }
-  .spinner {
-    width: 40px; height: 40px;
-    border: 3px solid rgba(255, 184, 0, 0.2);
-    border-top-color: #FFB800;
-    border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 14px; color: #888; }
-  .error-message {
-    background: rgba(255, 60, 60, 0.15); border: 1px solid rgba(255, 60, 60, 0.4);
-    border-radius: 12px; padding: 16px; margin: 20px 24px;
-    font-size: 14px; color: #ff8888;
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ヒトミル - レポート</title>
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:        #111113;
+      --bg2:       #1A1A1D;
+      --bg3:       #242428;
+      --border:    #2E2E34;
+      --gold:      #C9A84C;
+      --gold2:     #E8CC80;
+      --gold3:     #F5E4A8;
+      --green:     #4CAF82;
+      --text:      #F2EEE6;
+      --text2:     rgba(242,238,230,0.55);
+      --text3:     rgba(242,238,230,0.3);
+      --radius:    18px;
+      --radius-sm: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ═══════════════════════════════════════
+       LOADING
+    ═══════════════════════════════════════ */
+    #loading-screen {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 28px; z-index: 100;
+      transition: opacity .5s ease;
+    }
+    #loading-screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .load-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 32px; font-weight: 300; letter-spacing: 6px;
+      background: linear-gradient(135deg, var(--gold), var(--gold3), var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-transform: lowercase;
+    }
+    .load-bar-wrap {
+      width: 120px; height: 1px;
+      background: var(--border);
+      border-radius: 99px; overflow: hidden;
+    }
+    .load-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold3));
+      border-radius: 99px;
+      animation: loadSlide 1.6s ease-in-out infinite;
+    }
+    @keyframes loadSlide {
+      0%   { transform: translateX(-100%); }
+      50%  { transform: translateX(0%); }
+      100% { transform: translateX(100%); }
+    }
+    .load-status {
+      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--text3); font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════
+       MAIN
+    ═══════════════════════════════════════ */
+    #main {
+      display: none;
+      flex-direction: column;
+      padding-bottom: 60px;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    #main.visible { display: flex; }
+    #main.shown   { opacity: 1; transform: none; }
+
+    /* ═══════════════════════════════════════
+       HEADER
+    ═══════════════════════════════════════ */
+    .header {
+      padding: 56px 24px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-end; justify-content: space-between;
+    }
+    .header-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px; font-weight: 300; letter-spacing: 4px;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-transform: lowercase;
+    }
+    .header-eyebrow {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--text3); font-weight: 600; margin-bottom: 6px;
+    }
+    .header-name {
+      font-size: 12px; color: var(--text2); font-weight: 500;
+      text-align: right;
+    }
+
+    /* ═══════════════════════════════════════
+       SECTION
+    ═══════════════════════════════════════ */
+    .section {
+      padding: 32px 24px 0;
+    }
+
+    .section-eyebrow {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); font-weight: 700; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-eyebrow::after {
+      content: '';
+      flex: 1; height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ═══════════════════════════════════════
+       WEEK PILLS
+    ═══════════════════════════════════════ */
+    .week-row {
+      display: flex; gap: 6px;
+    }
+    .day-pill {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 12px 4px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: all .25s;
+    }
+    .day-pill.done {
+      background: rgba(201,168,76,0.08);
+      border-color: rgba(201,168,76,0.35);
+    }
+    .day-pill.today {
+      background: rgba(201,168,76,0.05);
+      border-color: rgba(201,168,76,0.2);
+    }
+    .day-pill.future { opacity: .3; }
+
+    .day-label {
+      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text3); font-weight: 700;
+    }
+    .day-mark { font-size: 14px; line-height: 1; }
+    .day-pill.done  .day-mark { color: var(--gold); }
+    .day-pill.today .day-mark { color: var(--gold2); opacity: .6; }
+    .day-pill.past  .day-mark { color: var(--text3); }
+
+    /* Progress */
+    .progress-wrap {
+      margin-top: 16px;
+      height: 2px;
+      background: var(--border);
+      border-radius: 99px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold3));
+      border-radius: 99px;
+      transition: width .8s cubic-bezier(.34,1.56,.64,1);
+    }
+    .progress-meta {
+      margin-top: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .progress-count {
+      font-size: 13px; font-weight: 700; color: var(--text);
+    }
+    .progress-count span { color: var(--gold2); }
+    .progress-pct {
+      font-size: 12px; color: var(--text3); font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════
+       RECORDS
+    ═══════════════════════════════════════ */
+    .records-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    }
+    .record-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px 12px 16px;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; position: relative; overflow: hidden;
+    }
+    .record-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: .5;
+    }
+    .record-icon {
+      font-size: 18px; line-height: 1;
+    }
+    .record-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 32px; font-weight: 500; line-height: 1;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .record-unit {
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text3); font-weight: 600; margin-top: -4px;
+    }
+    .record-label {
+      font-size: 10px; color: var(--text2); font-weight: 500;
+      text-align: center; line-height: 1.4;
+    }
+
+    /* ═══════════════════════════════════════
+       SESSIONS
+    ═══════════════════════════════════════ */
+    .session-list {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .session-card {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      opacity: 0; transform: translateY(6px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+    .session-card:last-child { border-bottom: none; }
+    .session-card.shown { opacity: 1; transform: none; }
+
+    .session-date-col {
+      min-width: 36px; text-align: center;
+    }
+    .session-date-num {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 26px; font-weight: 500; line-height: 1;
+      color: var(--gold2);
+    }
+    .session-date-dow {
+      font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text3); font-weight: 700;
+    }
+    .session-divider {
+      width: 1px; height: 32px;
+      background: var(--border);
+    }
+    .session-info { flex: 1; }
+    .session-duration {
+      font-size: 14px; font-weight: 700; color: var(--text);
+      line-height: 1;
+    }
+    .session-range {
+      font-size: 11px; color: var(--text3);
+      margin-top: 3px; font-weight: 500;
+    }
+    .session-check {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(76,175,130,0.12);
+      border: 1px solid rgba(76,175,130,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--green);
+    }
+
+    .empty-state {
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--text3); font-size: 13px; line-height: 1.8;
+    }
+    .empty-state-icon { font-size: 32px; margin-bottom: 12px; }
+
+    /* ═══════════════════════════════════════
+       ERROR
+    ═══════════════════════════════════════ */
+    #error-screen {
+      display: none;
+      position: fixed; inset: 0;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px; padding: 40px; text-align: center;
+    }
+    #error-screen.visible { display: flex; }
+    .err-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .err-msg   { font-size: 13px; color: var(--text3); line-height: 1.7; }
+  </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="header">
-    <div class="logo">ヒトミル<span class="accent">.</span></div>
-    <div class="step-indicator">REPORT 📊</div>
+<!-- Loading -->
+<div id="loading-screen">
+  <div>
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);text-align:center;margin-bottom:10px;font-weight:600;">MY REPORT</div>
+    <div class="load-logo">hitomiru</div>
   </div>
-  <div class="greeting">
-    <div class="greeting-text" id="greeting">あなたの戦績</div>
-  </div>
-  <div class="section">
-    <div class="section-title">THIS WEEK</div>
-    <div class="week-card">
-      <div class="week-summary">
-        <div class="week-label">今週のジム</div>
-        <div class="week-progress">
-          <span id="week-done">-</span><span class="week-progress-total">/<span id="week-target">-</span></span>
-        </div>
-      </div>
-      <div class="week-bar">
-        <div class="week-bar-fill" id="week-bar" style="width: 0%;"></div>
-      </div>
-      <div class="week-days" id="week-days"></div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">RECORDS</div>
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label">CONTINUOUS</div>
-        <div class="stat-value"><span id="stat-streak">-</span><span class="stat-unit">回</span></div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">THIS MONTH</div>
-        <div class="stat-value"><span id="stat-month">-</span><span class="stat-unit">回</span></div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">TOTAL TIME</div>
-        <div class="stat-value"><span id="stat-total-time">-</span><span class="stat-unit">時間</span></div>
-      </div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">RECENT SESSIONS</div>
-    <div class="history-list" id="history-list">
-      <div class="empty-state">読み込み中...</div>
-    </div>
-  </div>
+  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+  <div class="load-status" id="load-status">読み込み中</div>
 </div>
 
-<div class="loading-overlay" id="loading">
-  <div class="spinner"></div>
-  <div class="loading-text">LINEと接続中...</div>
+<!-- Error -->
+<div id="error-screen">
+  <div style="font-size:32px;">⚠️</div>
+  <div class="err-title">データを取得できませんでした</div>
+  <div class="err-msg" id="error-msg">しばらく時間をおいて再度お試しください</div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <div class="header">
+    <div>
+      <div class="header-eyebrow">My Report</div>
+      <div class="header-logo">hitomiru</div>
+    </div>
+    <div class="header-name" id="client-name"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-eyebrow">This Week</div>
+    <div class="week-row" id="week-row"></div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-meta">
+      <div class="progress-count"><span id="week-done">0</span> / 7 回達成</div>
+      <div class="progress-pct" id="week-pct">0%</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-eyebrow">Records</div>
+    <div class="records-grid">
+      <div class="record-card">
+        <div class="record-icon">🔥</div>
+        <div class="record-value" id="rec-streak">—</div>
+        <div class="record-unit">days</div>
+        <div class="record-label">連続日数</div>
+      </div>
+      <div class="record-card">
+        <div class="record-icon">🏆</div>
+        <div class="record-value" id="rec-month">—</div>
+        <div class="record-unit">回</div>
+        <div class="record-label">今月達成数</div>
+      </div>
+      <div class="record-card">
+        <div class="record-icon">⏱</div>
+        <div class="record-value" id="rec-hours">—</div>
+        <div class="record-unit">h</div>
+        <div class="record-label">累計滞在</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-bottom:0;">
+    <div class="section-eyebrow">Recent Sessions</div>
+    <div class="session-list" id="session-list"></div>
+  </div>
+
 </div>
 
 <script>
-const LIFF_ID = '2009941074-uSKRFkFW';
+const LIFF_ID      = 'YOUR_LIFF_ID';
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
 
-const loading = document.getElementById('loading');
-let clientId = null;
-let clientName = '';
+const $ = id => document.getElementById(id);
+const DOW = ['日','月','火','水','木','金','土'];
 
-window.addEventListener('load', async () => {
-  try {
-    await liff.init({ liffId: LIFF_ID });
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
-    const profile = await liff.getProfile();
-    const lineUserId = profile.userId;
-    
-    const { data: client, error } = await supabase
-      .from('clients')
-      .select('*')
-      .or(`line_user_id.eq.${lineUserId},token.eq.${lineUserId}`)
-      .maybeSingle();
-    
-    if (error || !client) {
-      loading.innerHTML = '<div class="error-message">ヒトミルは現在、モニター登録者のみ利用できます。<br>モニター希望の方は、LINEで「モニター」と送ってください。</div>';
-      return;
-    }
-
-    const status = client.status || 'monitor';
-    const todayForStatus = new Date().toISOString().split('T')[0];
-    const ended = client.plan_end_date && todayForStatus > client.plan_end_date && status === 'monitor';
-    if (['lead', 'expired', 'cancelled'].includes(status) || ended) {
-      loading.innerHTML = '<div class="error-message">ヒトミルのモニター期間が終了しました。<br>継続希望の方は、LINEで「継続」と送ってください。</div>';
-      return;
-    }
-    
-    clientId = client.id;
-    clientName = client.name;
-    
-    await loadReport();
-    loading.classList.add('hidden');
-  } catch (e) {
-    console.error(e);
-    loading.innerHTML = '<div class="error-message">読み込みに失敗しました: ' + (e.message || '') + '</div>';
-  }
-});
-
-async function loadReport() {
-  document.getElementById('greeting').textContent = `${clientName}さんの戦績 ✨`;
-  
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const ninetyDaysAgo = new Date(today);
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0];
-  
-  const { data: logs } = await supabase
-    .from('daily_logs')
-    .select('*')
-    .eq('client_id', clientId)
-    .gte('date', ninetyDaysAgoStr)
-    .lte('date', todayStr)
-    .order('date', { ascending: false });
-  
-  const allLogs = logs || [];
-  const successStatuses = ['in_progress', 'completed'];
-  const plannedStatuses = ['scheduled', 'in_progress', 'completed', 'missed', 'rescheduled'];
-  const plannedLogs = allLogs.filter(l => plannedStatuses.includes(l.status));
-  const doneLogs = allLogs.filter(l => successStatuses.includes(l.status));
-  
-  // 今週
-  const dayOfWeek = today.getDay();
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(monday.getDate() - daysSinceMonday);
-  
-  const weekLogs = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(d.getDate() + i);
-    const dStr = d.toISOString().split('T')[0];
-    const log = allLogs.find(l => l.date === dStr);
-    weekLogs.push({ date: dStr, dateObj: d, log });
-  }
-  
-  const weekPlanned = weekLogs.filter(w => w.log && plannedStatuses.includes(w.log.status)).length;
-  const weekDone = weekLogs.filter(w => w.log && successStatuses.includes(w.log.status)).length;
-  const weekTarget = Math.max(weekPlanned, weekDone, 1);
-  
-  document.getElementById('week-done').textContent = weekDone;
-  document.getElementById('week-target').textContent = weekTarget;
-  document.getElementById('week-bar').style.width = `${Math.min(100, (weekDone / weekTarget) * 100)}%`;
-  
-  const weekDaysEl = document.getElementById('week-days');
-  weekDaysEl.innerHTML = '';
-  const dayLabels = ['月', '火', '水', '木', '金', '土', '日'];
-  weekLogs.forEach((w, idx) => {
-    const status = w.log?.status || '';
-    const isDone = successStatuses.includes(status);
-    const isToday = w.date === todayStr;
-    const stateClass = isDone ? ' done' : status === 'scheduled' ? ' scheduled' : status === 'missed' ? ' missed' : status === 'rescheduled' ? ' rescheduled' : '';
-    const mark = isDone ? '✓' : status === 'scheduled' ? '予' : status === 'missed' ? '×' : status === 'rescheduled' ? '↺' : (w.dateObj <= today ? '−' : '・');
-    const pill = document.createElement('div');
-    pill.className = 'day-pill' + stateClass + (isToday ? ' today' : '');
-    pill.innerHTML = `<div class="day-label">${dayLabels[idx]}</div><div class="day-num">${mark}</div>`;
-    weekDaysEl.appendChild(pill);
+function setStatus(msg) { $('load-status').textContent = msg; }
+function showError(msg) {
+  $('loading-screen').classList.add('hidden');
+  $('error-msg').textContent = msg;
+  $('error-screen').classList.add('visible');
+}
+async function sbGet(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
   });
-  
-  // 連続チェックイン: カレンダー日数ではなく、予定日に対して連続でチェックインできた回数
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+function toDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function todayStr() { return toDateStr(new Date()); }
+function weekMonday() {
+  const d = new Date(), day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0); return d;
+}
+function monthStart() {
+  const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return toDateStr(d);
+}
+function durationMin(log) {
+  if (!log.started_at || !log.completed_at) return null;
+  return Math.round((new Date(log.completed_at) - new Date(log.started_at)) / 60000);
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function calcStreak(logs) {
   let streak = 0;
-  for (const log of plannedLogs) {
-    if (successStatuses.includes(log.status)) streak++;
-    else break;
-  }
-  document.getElementById('stat-streak').textContent = streak;
-  
-  // 今月
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const monthDone = doneLogs.filter(l => l.date >= firstOfMonth && l.date <= todayStr).length;
-  document.getElementById('stat-month').textContent = monthDone;
-  
-  // 累計時間
-  let totalMin = 0;
-  doneLogs.forEach(l => {
-    if (l.started_at && l.completed_at) {
-      const startMin = parseTimeToMinutes(l.started_at);
-      const endMin = parseTimeToMinutes(l.completed_at);
-      totalMin += Math.max(0, endMin - startMin);
+  const today = todayStr();
+  let expectDate = new Date(); expectDate.setHours(0,0,0,0);
+
+  for (const log of logs) {
+    const logDate = new Date(log.date + 'T00:00:00'); logDate.setHours(0,0,0,0);
+    const diffDays = Math.round((expectDate - logDate) / 86400000);
+    if (diffDays > 1) break;
+    if (log.status === 'completed') {
+      streak++;
+      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+    } else if (log.date === today) {
+      // 今日未完了はスキップして前日チェックへ
+      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+    } else {
+      break;
     }
-  });
-  const totalHours = (totalMin / 60).toFixed(1);
-  document.getElementById('stat-total-time').textContent = totalHours;
-  
-  // 履歴
-  const historyEl = document.getElementById('history-list');
-  if (doneLogs.length === 0) {
-    historyEl.innerHTML = '<div class="empty-state">まだセッション記録がありません。<br>初回お疲れ様 ✨</div>';
+  }
+  return streak;
+}
+
+function renderWeek(logs) {
+  const logMap = {};
+  logs.forEach(l => logMap[l.date] = l.status);
+  const mon = weekMonday(), today = todayStr();
+  const DOW_W = ['月','火','水','木','金','土','日'];
+  const row = $('week-row'); row.innerHTML = '';
+  let done = 0;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const ds = toDateStr(d);
+    const isDone = logMap[ds] === 'completed';
+    const isToday = ds === today, isFuture = ds > today;
+    if (isDone) done++;
+
+    const el = document.createElement('div');
+    el.className = 'day-pill ' + (isDone ? 'done' : isToday ? 'today' : isFuture ? 'future' : 'past');
+    el.innerHTML = `<div class="day-label">${DOW_W[i]}</div><div class="day-mark">${isDone ? '✓' : '·'}</div>`;
+    row.appendChild(el);
+  }
+  const pct = Math.round(done / 7 * 100);
+  $('week-done').textContent = done;
+  $('week-pct').textContent  = pct + '%';
+  setTimeout(() => { $('progress-bar').style.width = pct + '%'; }, 80);
+}
+
+function renderRecords(allLogs, monthLogs) {
+  const sorted = [...allLogs].sort((a,b) => b.date.localeCompare(a.date));
+  $('rec-streak').textContent = calcStreak(sorted);
+  $('rec-month').textContent  = monthLogs.filter(l => l.status === 'completed').length;
+  const totalMin = allLogs.reduce((s,l) => s + (durationMin(l)||0), 0);
+  $('rec-hours').textContent  = (totalMin/60).toFixed(1);
+}
+
+function renderSessions(allLogs) {
+  const sessions = allLogs
+    .filter(l => l.status === 'completed' && l.started_at)
+    .sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
+  const list = $('session-list'); list.innerHTML = '';
+  if (!sessions.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-state-icon">💪</div>まだセッションの記録がありません。<br>ジムに行ったら記録が残ります。</div>`;
     return;
   }
-  
-  historyEl.innerHTML = '';
-  const recent = doneLogs.slice(0, 10);
-  recent.forEach(log => {
-    const item = document.createElement('div');
-    item.className = 'history-item';
-    
-    const dateObj = new Date(log.date);
-    const dateLabel = `${dateObj.getMonth() + 1}/${dateObj.getDate()} (${dayLabels[(dateObj.getDay() + 6) % 7]})`;
-    
-    let timeRange = '';
-    let duration = 0;
-    if (log.started_at && log.completed_at) {
-      timeRange = `${log.started_at} → ${log.completed_at}`;
-      const startMin = parseTimeToMinutes(log.started_at);
-      const endMin = parseTimeToMinutes(log.completed_at);
-      duration = Math.max(0, endMin - startMin);
-    } else if (log.started_at) {
-      timeRange = `${log.started_at} 〜 (進行中)`;
-    }
-    
-    let statusIcon = '✓';
-    let statusClass = 'completed';
-    if (log.status === 'in_progress') {
-      statusIcon = '⏱';
-      statusClass = 'in-progress';
-    }
-    
-    item.innerHTML = `
-      <div class="history-status ${statusClass}">${statusIcon}</div>
-      <div class="history-info">
-        <div class="history-date">${dateLabel}</div>
-        <div class="history-time">${timeRange}</div>
+  sessions.forEach((log, i) => {
+    const d = new Date(log.date + 'T00:00:00'), min = durationMin(log);
+    const card = document.createElement('div');
+    card.className = 'session-card';
+    card.innerHTML = `
+      <div class="session-date-col">
+        <div class="session-date-num">${d.getDate()}</div>
+        <div class="session-date-dow">${DOW[d.getDay()]}</div>
       </div>
-      ${duration > 0 ? `<div class="history-duration">${duration}<span class="history-duration-unit">分</span></div>` : ''}
+      <div class="session-divider"></div>
+      <div class="session-info">
+        <div class="session-duration">${min != null ? min + ' 分' : '—'}</div>
+        <div class="session-range">${fmtTime(log.started_at)} — ${fmtTime(log.completed_at)}</div>
+      </div>
+      <div class="session-check">✓</div>
     `;
-    
-    historyEl.appendChild(item);
+    list.appendChild(card);
+    setTimeout(() => card.classList.add('shown'), 80 + i * 45);
   });
 }
 
-function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
+async function main() {
+  setStatus('起動中...');
+
+  // LIFF init — タイムアウト付き、失敗してもフォールバックへ
+  let lineUserId = null;
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+    ]);
+    if (liff.isLoggedIn()) {
+      const profile = await liff.getProfile();
+      lineUserId = profile.userId;
+    }
+  } catch(_) { /* フォールバックへ */ }
+
+  if (!lineUserId) lineUserId = TEST_USER_ID;
+
+  setStatus('データ取得中...');
+  let clientId = null;
+  try {
+    const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
+    if (!clients.length) throw new Error('このLINEアカウントは登録されていません');
+    clientId = clients[0].id;
+    $('client-name').textContent = clients[0].name;
+  } catch(e) { showError(e.message); return; }
+
+  try {
+    const monDs  = toDateStr(weekMonday());
+    const monDs2 = monthStart();
+    const [weekLogs, monthLogs, allLogs] = await Promise.all([
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs}&select=date,status&order=date.desc`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs2}&select=date,status&order=date.desc`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status,started_at,completed_at&order=date.desc&limit=200`),
+    ]);
+    renderWeek(weekLogs);
+    renderRecords(allLogs, monthLogs);
+    renderSessions(allLogs);
+  } catch(e) { showError('データ取得に失敗しました: ' + e.message); return; }
+
+  $('loading-screen').classList.add('hidden');
+  $('main').classList.add('visible');
+  requestAnimationFrame(() => setTimeout(() => $('main').classList.add('shown'), 20));
 }
+
+window.addEventListener('load', main);
 </script>
 </body>
 </html>
