@@ -152,6 +152,41 @@ html, body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-text { font-size: 13px; color: var(--gray); }
+
+@media (min-width: 600px) {
+  html, body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255,193,7,0.1), transparent 34%),
+      #111113;
+  }
+  .screen {
+    position: relative;
+    inset: auto;
+    width: min(430px, 100vw);
+    height: min(860px, 100dvh);
+    max-height: 100dvh;
+    overflow: hidden;
+    border-radius: 34px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.48);
+  }
+  .screen.hidden { display: none; }
+  .hero { padding: 0 30px; }
+  .hero-circle {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 28px;
+  }
+  .hero-circle svg {
+    width: 48px;
+    height: 48px;
+  }
+  .bottom {
+    padding-bottom: 20px;
+  }
+}
 </style>
 </head>
 <body>
