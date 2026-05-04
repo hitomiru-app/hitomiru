@@ -1,587 +1,659 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#FFC107">
-<title>hitomiru - checkout</title>
-<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root {
-  --yellow: #FFC107; --yellow-deep: #FFB300; --yellow-glow: #FFECB3;
-  --dark: #1C1C1E; --dark2: #2C2C2E; --gray: #8E8E93;
-  --white: #FFFFFF; --success: #30D158; --font: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body {
-  width: 100%; height: 100vh; height: 100dvh; overflow: hidden;
-  background: var(--dark); color: var(--white);
-  font-family: var(--font); -webkit-font-smoothing: antialiased;
-  user-select: none; -webkit-user-select: none;
-}
-.screen { position: fixed; inset: 0; display: flex; flex-direction: column; }
-.screen.hidden { display: none; }
-.nav {
-  padding: 16px 20px; padding-top: max(16px, env(safe-area-inset-top));
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--dark);
-}
-.nav-logo {
-  font-size: 22px; font-weight: 800; letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--yellow), #FFD54F);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.nav-pill {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--dark); background: var(--yellow); padding: 5px 12px; border-radius: 20px;
-}
-#confirm-screen {
-  background: linear-gradient(180deg, var(--dark) 0%, #262626 100%);
-  justify-content: space-between;
-}
-.hero {
-  flex: 1; display: flex; flex-direction: column;
-  justify-content: center; align-items: center;
-  padding: 0 34px; text-align: center;
-}
-.hero-circle {
-  width: 140px; height: 140px; border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, var(--yellow-glow), var(--yellow));
-  display: flex; align-items: center; justify-content: center; margin-bottom: 32px;
-  box-shadow: 0 12px 40px rgba(255, 193, 7, 0.35), 0 0 80px rgba(255, 193, 7, 0.15);
-  animation: pulse 2.5s ease-in-out infinite;
-}
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 12px 40px rgba(255,193,7,0.35), 0 0 80px rgba(255,193,7,0.15); }
-  50% { box-shadow: 0 16px 60px rgba(255,193,7,0.5), 0 0 120px rgba(255,193,7,0.25); }
-}
-.hero-circle svg { width: 54px; height: 54px; color: var(--dark); }
-.hero-title {
-  font-size: 26px; font-weight: 800; letter-spacing: -0.02em;
-  line-height: 1.35; margin-bottom: 14px;
-}
-.hero-title em {
-  font-style: normal;
-  background: linear-gradient(135deg, var(--yellow), #FFD54F);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.hero-sub { font-size: 14px; color: var(--gray); line-height: 1.7; margin-bottom: 20px; }
-.session-mini {
-  width: 100%; max-width: 320px;
-  background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 20px; padding: 18px 20px; display: none;
-}
-.session-mini-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
-.session-mini-label { font-size: 12px; color: var(--gray); }
-.session-mini-value { font-size: 16px; font-weight: 800; color: var(--yellow); }
-.bottom {
-  padding: 16px 20px; padding-bottom: max(16px, env(safe-area-inset-bottom));
-  background: var(--dark);
-}
-.btn-main {
-  width: 100%; padding: 18px;
-  background: linear-gradient(135deg, var(--yellow), var(--yellow-deep));
-  color: var(--dark); border: none; border-radius: 16px;
-  font-family: var(--font); font-size: 16px; font-weight: 800;
-  letter-spacing: 0.02em; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  box-shadow: 0 6px 24px rgba(255, 193, 7, 0.3);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-.btn-main:active { transform: scale(0.97); box-shadow: 0 3px 12px rgba(255, 193, 7, 0.2); }
-.btn-main:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
-.message-box {
-  margin: 0 20px 12px; padding: 14px 16px;
-  border-radius: 12px; font-size: 13px; line-height: 1.5; display: none; white-space: pre-line;
-}
-.message-box.show { display: block; }
-.message-box.error {
-  background: rgba(255, 69, 58, 0.12); border: 1px solid rgba(255, 69, 58, 0.3); color: #FF6961;
-}
-.message-box.warning {
-  background: rgba(255,193,7,0.1); border: 1px solid rgba(255,193,7,0.3); color: var(--yellow);
-}
-#done-screen {
-  background: var(--dark);
-  justify-content: center; align-items: center; padding: 0 36px;
-}
-.done-wrap { text-align: center; width: 100%; max-width: 360px; }
-.done-ring {
-  width: 100px; height: 100px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--success), #4ADE80);
-  margin: 0 auto 28px; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 32px rgba(48,209,88,0.3);
-  animation: popIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-@keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-.done-ring svg { width: 44px; height: 44px; color: var(--white); }
-.done-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6px; animation: up 0.4s ease 0.2s backwards; }
-.done-time { font-size: 14px; color: var(--gray); margin-bottom: 28px; animation: up 0.4s ease 0.3s backwards; }
-.session-card {
-  background: linear-gradient(135deg, rgba(255,193,7,0.12), rgba(255,193,7,0.04));
-  border: 1px solid rgba(255,193,7,0.25);
-  border-radius: 20px; padding: 24px; margin-bottom: 18px;
-  animation: up 0.4s ease 0.4s backwards;
-}
-.session-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; color: var(--yellow); margin-bottom: 8px; }
-.session-duration { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--yellow); }
-.session-duration-unit { font-size: 13px; color: var(--gray); margin-left: 4px; font-weight: 600; }
-.session-time-range { font-size: 13px; color: var(--gray); margin-top: 10px; }
-.stats-row { display: flex; gap: 12px; margin-bottom: 28px; animation: up 0.4s ease 0.5s backwards; }
-.stat-box {
-  flex: 1; background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px; padding: 16px 12px; text-align: center;
-}
-.stat-label { font-size: 10px; color: var(--gray); letter-spacing: 0.12em; margin-bottom: 6px; }
-.stat-value { font-size: 20px; font-weight: 800; color: var(--yellow); }
-.done-message { font-size: 13px; color: var(--gray); line-height: 1.7; animation: up 0.4s ease 0.6s backwards; }
-@keyframes up { 0% { transform: translateY(16px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
-.loading-overlay {
-  position: fixed; inset: 0;
-  background: rgba(28,28,30,0.97); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
-}
-.loading-overlay.show { display: flex; }
-.spinner {
-  width: 36px; height: 36px;
-  border: 3px solid rgba(255,193,7,0.15); border-top-color: var(--yellow);
-  border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 14px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loading-text { font-size: 13px; color: var(--gray); }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ヒトミル - 退館</title>
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 
-@media (min-width: 600px) {
-  html, body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(255,193,7,0.1), transparent 34%),
-      #111113;
-  }
-  .screen {
-    position: relative;
-    inset: auto;
-    width: min(430px, 100vw);
-    height: min(860px, 100dvh);
-    max-height: 100dvh;
-    overflow: hidden;
-    border-radius: 34px;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.48);
-  }
-  .screen.hidden { display: none; }
-  .hero { padding: 0 30px; }
-  .hero-circle {
-    width: 120px;
-    height: 120px;
-    margin-bottom: 28px;
-  }
-  .hero-circle svg {
-    width: 48px;
-    height: 48px;
-  }
-  .bottom {
-    padding-bottom: 20px;
-  }
-}
-</style>
+  <style>
+    :root {
+      --bg:        #111113;
+      --bg2:       #1A1A1D;
+      --bg3:       #242428;
+      --border:    #2E2E34;
+      --gold:      #C9A84C;
+      --gold2:     #E8CC80;
+      --gold3:     #F5E4A8;
+      --green:     #4CAF82;
+      --green2:    rgba(76,175,130,0.12);
+      --green3:    rgba(76,175,130,0.3);
+      --text:      #F2EEE6;
+      --text2:     rgba(242,238,230,0.55);
+      --text3:     rgba(242,238,230,0.3);
+      --radius:    18px;
+      --radius-sm: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ── LOADING ── */
+    #loading-screen {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 28px; z-index: 100;
+      transition: opacity .5s ease;
+    }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+
+    .load-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 32px; font-weight: 300; letter-spacing: 6px;
+      background: linear-gradient(135deg, var(--gold), var(--gold3), var(--gold));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-transform: lowercase;
+    }
+    .load-bar-wrap {
+      width: 120px; height: 1px;
+      background: var(--border); border-radius: 99px; overflow: hidden;
+    }
+    .load-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold3));
+      border-radius: 99px;
+      animation: loadSlide 1.6s ease-in-out infinite;
+    }
+    @keyframes loadSlide {
+      0%   { transform: translateX(-100%); }
+      50%  { transform: translateX(0%); }
+      100% { transform: translateX(100%); }
+    }
+    .load-status {
+      font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--text3); font-weight: 500;
+    }
+
+    /* ── ERROR ── */
+    #error-screen {
+      display: none; position: fixed; inset: 0;
+      background: var(--bg);
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; padding: 40px; text-align: center;
+    }
+    #error-screen.visible { display: flex; }
+    .err-title { font-size: 16px; font-weight: 700; }
+    .err-msg   { font-size: 13px; color: var(--text3); line-height: 1.7; }
+
+    /* ── MAIN ── */
+    #main {
+      display: none; flex-direction: column;
+      min-height: 100dvh;
+      opacity: 0; transform: translateY(12px);
+      transition: opacity .5s ease, transform .5s ease;
+    }
+    #main.visible { display: flex; }
+    #main.shown   { opacity: 1; transform: none; }
+
+    /* ── HEADER ── */
+    .header {
+      padding: 56px 24px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-end; justify-content: space-between;
+    }
+    .header-logo {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px; font-weight: 300; letter-spacing: 4px;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      text-transform: lowercase;
+    }
+    .header-eyebrow {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--text3); font-weight: 600; margin-bottom: 6px;
+    }
+    .header-name {
+      font-size: 12px; color: var(--text2); font-weight: 500; text-align: right;
+    }
+
+    /* ── SECTION ── */
+    .section { padding: 32px 24px 0; }
+    .section-eyebrow {
+      font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+      color: var(--gold); font-weight: 700; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-eyebrow::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    /* ── SESSION CARD ── */
+    .session-status-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      position: relative; overflow: hidden;
+    }
+    .session-status-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: .5;
+    }
+
+    /* ── IN_PROGRESS STATE ── */
+    #state-in-progress { display: none; }
+    #state-in-progress.active { display: block; }
+
+    .timer-label {
+      font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--text3); font-weight: 600; margin-bottom: 8px;
+    }
+    .timer-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 56px; font-weight: 300; line-height: 1;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 2px;
+    }
+    .timer-since {
+      font-size: 12px; color: var(--text3); margin-top: 8px; font-weight: 500;
+    }
+
+    .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+    .checkin-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .checkin-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: .5; transform: scale(.8); }
+    }
+    .checkin-text { font-size: 13px; color: var(--text2); font-weight: 500; }
+    .checkin-time { font-size: 13px; font-weight: 700; color: var(--text); }
+
+    /* ── NOT STARTED STATE ── */
+    #state-not-started { display: none; }
+    #state-not-started.active { display: block; }
+
+    .not-started-msg {
+      text-align: center; padding: 12px 0 4px;
+    }
+    .not-started-icon { font-size: 36px; margin-bottom: 12px; }
+    .not-started-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .not-started-sub { font-size: 13px; color: var(--text3); line-height: 1.6; }
+
+    /* ── BUTTON ── */
+    .btn-end {
+      margin-top: 28px;
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(135deg, var(--gold), var(--gold2));
+      border: none; border-radius: var(--radius-sm);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px; font-weight: 800; letter-spacing: 1px;
+      color: #111;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      position: relative; overflow: hidden;
+    }
+    .btn-end:active { opacity: .85; transform: scale(.98); }
+    .btn-end:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ── STREAK & WEEK (bottom stats) ── */
+    .stats-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+      position: relative; overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: .4;
+    }
+    .stat-label {
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--text3); font-weight: 700;
+    }
+    .stat-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 36px; font-weight: 500; line-height: 1;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-unit {
+      font-size: 10px; color: var(--text3); font-weight: 600;
+      letter-spacing: 1px; text-transform: uppercase; margin-top: -2px;
+    }
+
+    /* ── DONE SCREEN ── */
+    #done-screen {
+      display: none; position: fixed; inset: 0;
+      background: var(--bg);
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 0; padding: 40px; text-align: center;
+      opacity: 0; transition: opacity .5s ease;
+    }
+    #done-screen.visible { display: flex; }
+    #done-screen.shown   { opacity: 1; }
+
+    .done-check {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--green2);
+      border: 1px solid var(--green3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin-bottom: 24px;
+      animation: popIn .5s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    @keyframes popIn {
+      from { transform: scale(0); opacity: 0; }
+      to   { transform: scale(1); opacity: 1; }
+    }
+    .done-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 26px; font-weight: 400; letter-spacing: 1px;
+      color: var(--text); margin-bottom: 6px;
+    }
+    .done-name {
+      font-size: 13px; color: var(--text3); margin-bottom: 36px;
+    }
+
+    .done-stats {
+      width: 100%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px;
+    }
+    .done-stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .done-stat-label { font-size: 12px; color: var(--text3); font-weight: 600; }
+    .done-stat-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 22px; font-weight: 500;
+      background: linear-gradient(135deg, var(--gold), var(--gold3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .done-message {
+      font-size: 13px; color: var(--text2); line-height: 1.8;
+    }
+
+    /* padding bottom */
+    .pb { padding-bottom: 40px; }
+  </style>
 </head>
 <body>
 
-<div class="screen" id="confirm-screen">
-  <div class="nav">
-    <div class="nav-logo">hitomiru</div>
-    <div class="nav-pill">Check out</div>
+<!-- Loading -->
+<div id="loading-screen">
+  <div>
+    <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text3);text-align:center;margin-bottom:10px;font-weight:600;">CHECK OUT</div>
+    <div class="load-logo">hitomiru</div>
   </div>
-  <div class="hero">
-    <div class="hero-circle">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-    </div>
-    <div class="hero-title">ジム、<em>終わりましたか？</em></div>
-    <div class="hero-sub" id="confirm-subtitle">今日のセッションを終了します。</div>
-    <div class="session-mini" id="confirm-stats">
-      <div class="session-mini-row">
-        <div class="session-mini-label">開始時刻</div>
-        <div class="session-mini-value" id="confirm-start-time">--:--</div>
-      </div>
-      <div class="session-mini-row">
-        <div class="session-mini-label">経過時間</div>
-        <div class="session-mini-value" id="confirm-duration">--分</div>
-      </div>
-    </div>
-  </div>
-  <div class="message-box warning" id="warning-message"></div>
-  <div class="message-box error" id="error-message"></div>
-  <div class="bottom">
-    <button class="btn-main" id="finish-btn" disabled>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      チェックアウトする
-    </button>
-  </div>
+  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+  <div class="load-status" id="load-status">読み込み中</div>
 </div>
 
-<div class="screen hidden" id="done-screen">
-  <div class="done-wrap">
-    <div class="done-ring">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+<!-- Error -->
+<div id="error-screen">
+  <div style="font-size:32px;">⚠️</div>
+  <div class="err-title">エラーが発生しました</div>
+  <div class="err-msg" id="error-msg">しばらく時間をおいて再度お試しください</div>
+</div>
+
+<!-- Done -->
+<div id="done-screen">
+  <div class="done-check">✓</div>
+  <div class="done-title">お疲れ様でした</div>
+  <div class="done-name" id="done-name"></div>
+  <div class="done-stats">
+    <div class="done-stat-row">
+      <div class="done-stat-label">滞在時間</div>
+      <div class="done-stat-value" id="done-duration">—</div>
     </div>
-    <div class="done-title" id="done-name">お疲れ様です！</div>
-    <div class="done-time">今日のセッション完了</div>
-    <div class="session-card">
-      <div class="session-label">TODAY'S SESSION</div>
-      <div class="session-duration">
-        <span id="session-duration-value">--</span><span class="session-duration-unit">分</span>
+    <div class="done-stat-row">
+      <div class="done-stat-label">入館 → 退館</div>
+      <div class="done-stat-value" id="done-timerange">—</div>
+    </div>
+    <div class="done-stat-row">
+      <div class="done-stat-label">連続日数 🔥</div>
+      <div class="done-stat-value" id="done-streak">—</div>
+    </div>
+    <div class="done-stat-row">
+      <div class="done-stat-label">今週の達成数</div>
+      <div class="done-stat-value" id="done-week">— / 7</div>
+    </div>
+  </div>
+  <div class="done-message">コーチがすぐ確認します。<br>今日もよく動きました 💪</div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <div class="header">
+    <div>
+      <div class="header-eyebrow">Check Out</div>
+      <div class="header-logo">hitomiru</div>
+    </div>
+    <div class="header-name" id="client-name"></div>
+  </div>
+
+  <!-- Session状態 -->
+  <div class="section">
+    <div class="section-eyebrow">Session</div>
+
+    <div class="session-status-card">
+
+      <!-- セッション進行中 -->
+      <div id="state-in-progress">
+        <div class="timer-label">経過時間</div>
+        <div class="timer-value" id="timer-display">00:00</div>
+        <div class="timer-since" id="timer-since"></div>
+        <div class="divider"></div>
+        <div class="checkin-row">
+          <div class="checkin-dot"></div>
+          <div class="checkin-text">入館時刻&nbsp;&nbsp;</div>
+          <div class="checkin-time" id="checkin-time">—</div>
+        </div>
+        <button class="btn-end" id="btn-end" onclick="handleCheckout()">
+          🏁 セッション終了
+        </button>
       </div>
-      <div class="session-time-range" id="session-time-range">--:-- → --:--</div>
+
+      <!-- 未着手（着いたボタンを押していない） -->
+      <div id="state-not-started">
+        <div class="not-started-msg">
+          <div class="not-started-icon">🏋️</div>
+          <div class="not-started-title">まだ入館記録がありません</div>
+          <div class="not-started-sub">先に「📷 着いた」から<br>入館を記録してください</div>
+        </div>
+      </div>
+
     </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="section pb">
+    <div class="section-eyebrow">Today's Stats</div>
     <div class="stats-row">
-      <div class="stat-box">
-        <div class="stat-label">CONTINUOUS</div>
-        <div class="stat-value" id="streak-value">-日 🔥</div>
+      <div class="stat-card">
+        <div class="stat-label">連続日数</div>
+        <div class="stat-value" id="stat-streak">—</div>
+        <div class="stat-unit">days 🔥</div>
       </div>
-      <div class="stat-box">
-        <div class="stat-label">THIS WEEK</div>
-        <div class="stat-value" id="week-value">-/-</div>
+      <div class="stat-card">
+        <div class="stat-label">今週達成</div>
+        <div class="stat-value" id="stat-week">—</div>
+        <div class="stat-unit">/ 7 回</div>
       </div>
-    </div>
-    <div class="done-message">
-      コーチに通知が飛びました ✨<br>
-      ゆっくり休んでください 🌙
     </div>
   </div>
-</div>
 
-<div class="loading-overlay" id="loading">
-  <div class="spinner"></div>
-  <div class="loading-text" id="loading-text">読み込み中...</div>
 </div>
 
 <script>
-const LIFF_ID = '2009941074-acGm0mti'; 
+const LIFF_ID      = 'YOUR_LIFF_ID';   // ← GitHubで差し替え（checkout用）
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+const LINE_EDGE_FN = `${SUPABASE_URL}/functions/v1/send-line-message`;
+const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
 
-const confirmScreen = document.getElementById('confirm-screen');
-const doneScreen = document.getElementById('done-screen');
-const finishBtn = document.getElementById('finish-btn');
-const loading = document.getElementById('loading');
-const loadingText = document.getElementById('loading-text');
-const errorMessage = document.getElementById('error-message');
-const warningMessage = document.getElementById('warning-message');
-const confirmSubtitle = document.getElementById('confirm-subtitle');
-const confirmStats = document.getElementById('confirm-stats');
+const $ = id => document.getElementById(id);
+const DOW = ['日','月','火','水','木','金','土'];
 
-let clientId = null;
+let clientId   = null;
 let clientName = '';
-let lineUserId = '';
-let todayLog = null;
-let alreadyCompleted = false;
+let lineUserId = null;
+let startedAt  = null;   // Date object
+let timerInterval = null;
 
-window.addEventListener('load', async () => {
-  showLoading('読み込み中...');
-  
-  try {
-    await liff.init({ liffId: LIFF_ID });
-    
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
-    
-    const profile = await liff.getProfile();
-    lineUserId = profile.userId;
-    
-    const { data: client, error: clientErr } = await supabase
-      .from('clients')
-      .select('*')
-      .or(`line_user_id.eq.${lineUserId},token.eq.${lineUserId}`)
-      .maybeSingle();
-    
-    if (clientErr || !client) {
-      showUnavailable('ヒトミルは現在、モニター登録者のみ利用できます。\nモニター希望の方は、LINEで「モニター」と送ってください。');
-      hideLoading();
-      return;
-    }
-
-    const status = client.status || 'monitor';
-    const todayForStatus = todayJST();
-    const ended = client.plan_end_date && todayForStatus > client.plan_end_date && status === 'monitor';
-    if (['lead', 'expired', 'cancelled'].includes(status) || ended) {
-      showUnavailable('ヒトミルのモニター期間が終了しました。\n継続希望の方は、LINEで「継続」と送ってください。');
-      hideLoading();
-      return;
-    }
-    
-    clientId = client.id;
-    clientName = client.name;
-    
-    const today = todayJST();
-    const { data: log } = await supabase
-      .from('daily_logs')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('date', today)
-      .maybeSingle();
-    
-    todayLog = log;
-    
-    if (!log || !log.started_at) {
-      showWarning('チェックイン記録はまだありません。\nこのままチェックアウト記録だけ残すこともできます。');
-      confirmStats.style.display = 'block';
-      document.getElementById('confirm-start-time').textContent = '--:--';
-      document.getElementById('confirm-duration').textContent = '--分';
-      finishBtn.textContent = '🏁 チェックアウトする';
-      finishBtn.disabled = false;
-    } else if (log.status === 'completed' || log.completed_at) {
-      alreadyCompleted = true;
-      showWarning('今日のセッションは既に記録済みです ✨');
-      finishBtn.disabled = false;
-      finishBtn.textContent = '記録を確認する';
-      finishBtn.style.opacity = '1';
-      
-      confirmStats.style.display = 'block';
-      document.getElementById('confirm-start-time').textContent = log.started_at;
-      document.getElementById('confirm-duration').textContent = calcDurationLabel(log.started_at, log.completed_at);
-      confirmSubtitle.textContent = '今日のセッション';
-    } else {
-      confirmStats.style.display = 'block';
-      document.getElementById('confirm-start-time').textContent = log.started_at;
-      finishBtn.disabled = false;
-      updateElapsed();
-      setInterval(updateElapsed, 30000);
-    }
-    
-    hideLoading();
-  } catch (e) {
-    console.error(e);
-    showError('LINE連携エラー: ' + (e.message || ''));
-    hideLoading();
-  }
-});
-
-function updateElapsed() {
-  if (!todayLog || !todayLog.started_at) return;
-  const startMin = parseTimeToMinutes(todayLog.started_at);
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const elapsed = Math.max(0, nowMin - startMin);
-  document.getElementById('confirm-duration').textContent = `${elapsed}分`;
-}
-
-function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-}
-
+function setStatus(msg) { $('load-status').textContent = msg; }
 function showError(msg) {
-  errorMessage.textContent = msg;
-  errorMessage.classList.add('show');
-}
-function showWarning(msg) {
-  warningMessage.textContent = msg;
-  warningMessage.classList.add('show');
-}
-function showUnavailable(msg) {
-  confirmSubtitle.textContent = msg;
-  confirmStats.style.display = 'none';
-  finishBtn.disabled = true;
-  finishBtn.textContent = 'LINEで相談してください';
-  showWarning(msg);
+  $('loading-screen').classList.add('hidden');
+  $('error-msg').textContent = msg;
+  $('error-screen').classList.add('visible');
 }
 
-finishBtn.addEventListener('click', async () => {
-  showLoading('記録中...');
-  
-  try {
-    const today = todayJST();
-    const nowTimeStr = nowTimeJP();
-
-    const { data: latestLog, error: latestErr } = await supabase
-      .from('daily_logs')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('date', today)
-      .maybeSingle();
-    if (latestErr) throw latestErr;
-    todayLog = latestLog || todayLog;
-
-    if (alreadyCompleted && todayLog && todayLog.completed_at) {
-      hideLoading();
-      showDone(todayLog.completed_at);
-      return;
-    }
-    
-    if (todayLog) {
-      const { error } = await supabase
-        .from('daily_logs')
-        .update({
-          status: 'completed',
-          completed_at: nowTimeStr,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', todayLog.id);
-      if (error) throw error;
-      todayLog = { ...todayLog, status: 'completed', completed_at: nowTimeStr };
-    } else {
-      const { data: newLog, error } = await supabase
-        .from('daily_logs')
-        .insert({
-          client_id: clientId,
-          date: today,
-          status: 'completed',
-          completed_at: nowTimeStr,
-          task: 'ジムに行く'
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      todayLog = newLog;
-    }
-    
-    const { error: evtErr } = await supabase
-      .from('events')
-      .insert({
-        client_id: clientId,
-        date: today,
-        type: 'user_completed',
-        message: todayLog && todayLog.started_at
-          ? `${clientName}さんがチェックアウトしました 🏁`
-          : `${clientName}さんがチェックアウトしました（チェックイン記録なし）🏁`,
-        is_new: true
-      });
-    if (evtErr) throw evtErr;
-
-    await sendCheckoutLine(nowTimeStr);
-    
-    hideLoading();
-    showDone(nowTimeStr);
-  } catch (e) {
-    hideLoading();
-    console.error(e);
-    alert('送信に失敗しました: ' + e.message);
-  }
-});
-
-async function sendCheckoutLine(endTimeStr) {
-  if (!lineUserId) return;
-
-  const durationLabel = todayLog && todayLog.started_at
-    ? calcDurationLabel(todayLog.started_at, endTimeStr)
-    : 'チェックイン記録なし';
-
-  try {
-    await supabase.functions.invoke('send-line-message', {
-      body: {
-        lineUserId,
-        message: `🏁 ${clientName}さん、チェックアウト完了\n\n終了時刻：${endTimeStr}\n滞在時間：${durationLabel}\n\n今日もジムまで行けました。\nここまで来た時点で、かなり大きいです。\n\nゆっくり休んでください🌙`
-      }
-    });
-  } catch (lineErr) {
-    console.log('LINE送信エラー（無視可）:', lineErr);
-  }
-}
-
-async function showDone(endTimeStr) {
-  confirmScreen.classList.add('hidden');
-  doneScreen.classList.remove('hidden');
-  
-  document.getElementById('done-name').textContent = `${clientName}さん、お疲れ様！`;
-  
-  let durationMin = 0;
-  let startTimeStr = '--:--';
-  
-  if (todayLog && todayLog.started_at) {
-    startTimeStr = todayLog.started_at;
-    const startMin = parseTimeToMinutes(todayLog.started_at);
-    const endMin = parseTimeToMinutes(endTimeStr);
-    durationMin = Math.max(0, endMin - startMin);
-  }
-  
-  document.getElementById('session-duration-value').textContent = durationMin || '0';
-  document.getElementById('session-time-range').textContent = `${startTimeStr} → ${endTimeStr}`;
-  
-  try {
-    const stats = await calculateStreak();
-    document.getElementById('streak-value').textContent = `${stats.streak}回目 🔥`;
-    document.getElementById('week-value').textContent = `${stats.weekDone}/${stats.weekTotal}`;
-  } catch (e) {
-    console.error('streak calc failed', e);
-  }
-}
-
-async function calculateStreak() {
-  const today = new Date();
-  const todayStr = todayJST();
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-  
-  const { data: logs } = await supabase
-    .from('daily_logs')
-    .select('date, status')
-    .eq('client_id', clientId)
-    .gte('date', thirtyDaysAgoStr)
-    .lte('date', todayStr)
-    .order('date', { ascending: false });
-  
-  const success = ['in_progress', 'completed'];
-  const planned = ['scheduled', 'in_progress', 'completed', 'missed', 'rescheduled'];
-  const plannedLogs = (logs || []).filter(l => planned.includes(l.status));
-  let streak = 0;
-  for (const log of plannedLogs) {
-    if (success.includes(log.status)) streak++;
-    else break;
-  }
-  
-  const dayOfWeek = today.getDay();
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(monday.getDate() - daysSinceMonday);
-  const mondayStr = monday.toISOString().split('T')[0];
-  
-  const weekPlanned = plannedLogs.filter(l => l.date >= mondayStr && l.date <= todayStr);
-  const weekDone = weekPlanned.filter(l => success.includes(l.status)).length;
-  
-  const weekTotal = Math.max(weekPlanned.length, weekDone, 1);
-  
-  return { streak: Math.max(streak, 1), weekDone, weekTotal };
-}
-
-function todayJST() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function nowTimeJP() {
-  return new Date().toLocaleTimeString('ja-JP', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
+async function sbGet(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
   });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function sbPatch(table, id, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('PATCH HTTP ' + r.status);
+}
+async function sbInsert(table, body) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('INSERT HTTP ' + r.status);
 }
 
-function calcDurationLabel(startTimeStr, endTimeStr) {
-  if (!startTimeStr || !endTimeStr) return '--分';
-  const startMin = parseTimeToMinutes(startTimeStr);
-  const endMin = parseTimeToMinutes(endTimeStr);
-  return `${Math.max(0, endMin - startMin)}分`;
+function toDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function todayStr() { return toDateStr(new Date()); }
+function weekMonday() {
+  const d = new Date(), day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0); return d;
+}
+function fmtTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function fmtElapsed(ms) {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function showLoading(text) {
-  loadingText.textContent = text || '送信中...';
-  loading.classList.add('show');
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (!startedAt) return;
+    $('timer-display').textContent = fmtElapsed(Date.now() - startedAt.getTime());
+  }, 1000);
 }
-function hideLoading() {
-  loading.classList.remove('show');
+
+function calcStreak(logs) {
+  let streak = 0;
+  const today = todayStr();
+  let expectDate = new Date(); expectDate.setHours(0,0,0,0);
+  for (const log of logs) {
+    const logDate = new Date(log.date + 'T00:00:00'); logDate.setHours(0,0,0,0);
+    const diffDays = Math.round((expectDate - logDate) / 86400000);
+    if (diffDays > 1) break;
+    if (log.status === 'completed') {
+      streak++;
+      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+    } else if (log.date === today) {
+      expectDate = new Date(logDate); expectDate.setDate(logDate.getDate() - 1);
+    } else { break; }
+  }
+  return streak;
 }
+
+async function handleCheckout() {
+  const btn = $('btn-end');
+  btn.disabled = true;
+  btn.textContent = '記録中...';
+
+  const now = new Date().toISOString();
+  const today = todayStr();
+
+  try {
+    // daily_logs 更新
+    const logs = await sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=id`);
+    if (!logs.length) throw new Error('ログが見つかりません');
+    const logId = logs[0].id;
+
+    await sbPatch('daily_logs', logId, {
+      status: 'completed',
+      completed_at: now
+    });
+
+    // events 記録
+    await sbInsert('events', {
+      client_id: clientId,
+      date: today,
+      type: 'user_completed',
+      message: `${clientName}さんが退館しました`,
+      is_new: true
+    });
+
+    // LINE通知
+    const min = startedAt ? Math.round((new Date(now) - startedAt) / 60000) : 0;
+    const msg = `🏁 ${clientName}さん、お疲れ様でした！\n滞在時間：${min}分\nコーチが確認次第、メッセージをお送りしますね 💪`;
+    await fetch(LINE_EDGE_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 Authorization: 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ lineUserId, message: msg })
+    });
+
+    // 完了画面
+    showDone(now, min, today);
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '🏁 セッション終了';
+    alert('エラーが発生しました: ' + e.message);
+  }
+}
+
+async function showDone(completedIso, min, today) {
+  if (timerInterval) clearInterval(timerInterval);
+
+  // streak & week count
+  const [allLogs, weekLogs] = await Promise.all([
+    sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status&order=date.desc&limit=200`),
+    sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${toDateStr(weekMonday())}&select=date,status&order=date.desc`)
+  ]).catch(() => [[], []]);
+
+  const streak = calcStreak(allLogs);
+  const weekDone = weekLogs.filter(l => l.status === 'completed').length;
+
+  $('done-name').textContent = clientName + ' さん';
+  $('done-duration').textContent = min + ' 分';
+  $('done-timerange').textContent = fmtTime(startedAt?.toISOString()) + ' → ' + fmtTime(completedIso);
+  $('done-streak').textContent = streak + ' days';
+  $('done-week').textContent = weekDone + ' / 7';
+
+  $('main').classList.remove('visible', 'shown');
+  $('done-screen').classList.add('visible');
+  requestAnimationFrame(() => setTimeout(() => $('done-screen').classList.add('shown'), 20));
+}
+
+// ── MAIN FLOW ──────────────────────────────
+async function main() {
+  setStatus('起動中...');
+
+  // LIFF
+  let liffOk = false;
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, rej) => setTimeout(() => rej(), 5000))
+    ]);
+    liffOk = true;
+  } catch(_) {}
+
+  if (liffOk && liff.isLoggedIn()) {
+    try { lineUserId = (await liff.getProfile()).userId; } catch(_) {}
+  }
+  if (!lineUserId) lineUserId = TEST_USER_ID;
+
+  // Client
+  setStatus('データ取得中...');
+  try {
+    const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
+    if (!clients.length) throw new Error('このLINEアカウントは登録されていません');
+    clientId   = clients[0].id;
+    clientName = clients[0].name;
+    $('client-name').textContent = clientName;
+  } catch(e) { showError(e.message); return; }
+
+  // Today's log
+  const today = todayStr();
+  try {
+    const [todayLog, allLogs, weekLogs] = await Promise.all([
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=*&limit=1`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status&order=date.desc&limit=200`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${toDateStr(weekMonday())}&select=date,status&order=date.desc`),
+    ]);
+
+    // streak & week stats
+    const streak   = calcStreak(allLogs);
+    const weekDone = weekLogs.filter(l => l.status === 'completed').length;
+    $('stat-streak').textContent = streak;
+    $('stat-week').textContent   = weekDone;
+
+    // セッション状態
+    const log = todayLog[0];
+    if (log && log.started_at && log.status === 'in_progress') {
+      startedAt = new Date(log.started_at);
+      $('checkin-time').textContent = fmtTime(log.started_at);
+      $('timer-since').textContent  = '入館から計測中';
+      $('timer-display').textContent = fmtElapsed(Date.now() - startedAt.getTime());
+      $('state-in-progress').classList.add('active');
+      startTimer();
+    } else if (log && log.status === 'completed') {
+      // すでに完了済み → 完了画面へ
+      const min = log.started_at && log.completed_at
+        ? Math.round((new Date(log.completed_at) - new Date(log.started_at)) / 60000) : 0;
+      startedAt = log.started_at ? new Date(log.started_at) : null;
+      showDone(log.completed_at, min, today);
+      $('loading-screen').classList.add('hidden');
+      return;
+    } else {
+      $('state-not-started').classList.add('active');
+    }
+
+  } catch(e) { showError('データ取得に失敗しました: ' + e.message); return; }
+
+  $('loading-screen').classList.add('hidden');
+  $('main').classList.add('visible');
+  requestAnimationFrame(() => setTimeout(() => $('main').classList.add('shown'), 20));
+}
+
+window.addEventListener('load', main);
 </script>
 </body>
 </html>
