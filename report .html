@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ヒトミル - レポート</title>
+
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:        #1C1C1E;
+      --bg2:       #2C2C2E;
+      --bg3:       #3A3A3C;
+      --yellow:    #FFC107;
+      --yellow2:   #FFD54F;
+      --green:     #34C759;
+      --red:       #FF3B30;
+      --text:      #FFFFFF;
+      --text2:     #EBEBF599;
+      --text3:     #EBEBF560;
+      --radius:    16px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    /* ─── LOADING ─── */
+    #loading-screen {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px; z-index: 100;
+      transition: opacity .4s;
+    }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+
+    .logo-text {
+      font-size: 28px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--bg3);
+      border-top-color: var(--yellow);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── MAIN ─── */
+    #main {
+      display: none;
+      flex-direction: column;
+      min-height: 100dvh;
+      padding: 0 0 40px;
+    }
+    #main.visible { display: flex; }
+
+    /* ─── HEADER ─── */
+    .header {
+      padding: 56px 20px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-logo { font-size: 20px; font-weight: 800; letter-spacing: 1.5px;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-sub { font-size: 12px; color: var(--text3); font-weight: 500; letter-spacing: .5px; text-transform: uppercase; }
+
+    /* ─── WEEK SECTION ─── */
+    .section { padding: 0 20px 24px; }
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 2px;
+      color: var(--yellow); text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    /* Week pills */
+    .week-row {
+      display: flex; gap: 8px; justify-content: space-between;
+    }
+    .day-pill {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px;
+      padding: 10px 4px;
+      background: var(--bg2);
+      border-radius: var(--radius-sm);
+      border: 1.5px solid transparent;
+      transition: all .2s;
+    }
+    .day-pill.done   { border-color: var(--green); background: #34C75915; }
+    .day-pill.today  { border-color: var(--yellow); background: #FFC10715; }
+    .day-pill.future { opacity: .45; }
+
+    .day-label { font-size: 10px; color: var(--text3); font-weight: 600; letter-spacing: .5px; }
+    .day-mark  { font-size: 15px; line-height: 1; }
+    .day-pill.done  .day-mark  { color: var(--green); }
+    .day-pill.today .day-mark  { color: var(--yellow); }
+
+    /* Progress bar */
+    .progress-wrap {
+      margin-top: 16px;
+      background: var(--bg2); border-radius: 99px; height: 6px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--yellow), var(--yellow2));
+      border-radius: 99px;
+      transition: width .6s cubic-bezier(.34,1.56,.64,1);
+    }
+    .progress-text {
+      margin-top: 8px;
+      font-size: 12px; color: var(--text2); font-weight: 600;
+      display: flex; justify-content: space-between;
+    }
+
+    /* ─── RECORDS ─── */
+    .records-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    }
+    .record-card {
+      background: var(--bg2); border-radius: var(--radius-sm);
+      padding: 14px 12px;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      border: 1px solid var(--bg3);
+    }
+    .record-icon { font-size: 20px; }
+    .record-value {
+      font-size: 22px; font-weight: 800;
+      background: linear-gradient(135deg, var(--yellow), var(--yellow2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+    .record-unit { font-size: 10px; color: var(--text3); font-weight: 600; margin-top: -2px; }
+    .record-label { font-size: 10px; color: var(--text2); font-weight: 500; text-align: center; line-height: 1.3; }
+
+    /* ─── SESSIONS ─── */
+    .session-list { display: flex; flex-direction: column; gap: 10px; }
+    .session-card {
+      background: var(--bg2); border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 14px;
+      border: 1px solid var(--bg3);
+      animation: fadeUp .3s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .session-date-col { text-align: center; min-width: 40px; }
+    .session-date-col .date-num { font-size: 20px; font-weight: 800; color: var(--yellow); line-height: 1; }
+    .session-date-col .date-dow { font-size: 10px; color: var(--text3); font-weight: 600; }
+    .session-divider { width: 1px; height: 36px; background: var(--bg3); }
+    .session-info { flex: 1; }
+    .session-time { font-size: 13px; font-weight: 600; color: var(--text); }
+    .session-range { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    .session-badge {
+      padding: 4px 10px; border-radius: 99px;
+      font-size: 11px; font-weight: 700;
+      background: #34C75920; color: var(--green);
+    }
+
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      color: var(--text3); font-size: 14px;
+    }
+
+    /* ─── DEBUG ─── */
+    #debug-log {
+      margin: 0 20px; padding: 12px 14px;
+      background: #2C2C2E; border-radius: 10px;
+      font-size: 11px; line-height: 1.7;
+      color: #aaa; display: none;
+    }
+    #debug-log.visible { display: block; }
+    .debug-step { }
+    .debug-step.ok   { color: #34C759; }
+    .debug-step.err  { color: #FF3B30; }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="logo-text">hitomiru</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <div class="header">
+    <div>
+      <div class="header-logo">hitomiru</div>
+      <div class="header-sub">MY REPORT</div>
+    </div>
+    <div style="font-size:22px;">📊</div>
+  </div>
+
+  <!-- Debug log (hidden after success) -->
+  <div id="debug-log"></div>
+
+  <!-- WEEK -->
+  <div class="section">
+    <div class="section-label">THIS WEEK</div>
+    <div class="week-row" id="week-row">
+      <!-- JS generated -->
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-text">
+      <span id="week-count-text">0 / 0 達成</span>
+      <span id="week-goal-text"></span>
+    </div>
+  </div>
+
+  <!-- RECORDS -->
+  <div class="section">
+    <div class="section-label">RECORDS</div>
+    <div class="records-grid">
+      <div class="record-card">
+        <div class="record-icon">🔥</div>
+        <div class="record-value" id="rec-streak">—</div>
+        <div class="record-unit">days</div>
+        <div class="record-label">連続日数</div>
+      </div>
+      <div class="record-card">
+        <div class="record-icon">🏆</div>
+        <div class="record-value" id="rec-month">—</div>
+        <div class="record-unit">回</div>
+        <div class="record-label">今月達成数</div>
+      </div>
+      <div class="record-card">
+        <div class="record-icon">⏱️</div>
+        <div class="record-value" id="rec-hours">—</div>
+        <div class="record-unit">h</div>
+        <div class="record-label">累計滞在</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT SESSIONS -->
+  <div class="section">
+    <div class="section-label">RECENT SESSIONS</div>
+    <div class="session-list" id="session-list">
+      <!-- JS generated -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const LIFF_ID       = 'YOUR_LIFF_ID';
+const SUPABASE_URL  = 'https://qqgawirefsxcgrsdskpq.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+
+// ─── HELPERS ──────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const DOW_JA = ['日','月','火','水','木','金','土'];
+
+function debug(msg, type = '') {
+  const el = $('debug-log');
+  el.classList.add('visible');
+  const line = document.createElement('div');
+  line.className = 'debug-step ' + type;
+  line.textContent = msg;
+  el.appendChild(line);
+  console.log(msg);
+}
+
+function hideDebug() {
+  setTimeout(() => {
+    const el = $('debug-log');
+    el.style.transition = 'opacity .6s';
+    el.style.opacity = '0';
+    setTimeout(() => el.classList.remove('visible'), 700);
+  }, 3000);
+}
+
+async function sbFetch(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON }
+  });
+  if (!r.ok) throw new Error('Supabase error ' + r.status);
+  return r.json();
+}
+
+// ─── DATES ────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function weekStart() {   // 月曜始まり
+  const d = new Date();
+  const day = d.getDay(); // 0=Sun
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+function dateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function monthStart() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01';
+}
+
+// ─── DURATION ─────────────────────────────────────────────
+function durationMin(row) {
+  if (!row.started_at || !row.completed_at) return null;
+  const ms = new Date(row.completed_at) - new Date(row.started_at);
+  return Math.round(ms / 60000);
+}
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+// ─── STREAK ───────────────────────────────────────────────
+function calcStreak(logs) {
+  // logs: array of {date, status} sorted desc
+  let streak = 0;
+  let cursor = new Date();
+  cursor.setHours(0,0,0,0);
+
+  for (const log of logs) {
+    const d = new Date(log.date + 'T00:00:00');
+    const diff = Math.round((cursor - d) / 86400000);
+    if (diff > 1) break;
+    if (log.status === 'completed') {
+      streak++;
+      cursor = d;
+    } else if (diff === 0) {
+      // today not completed yet — skip, don't break
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// ─── RENDER ───────────────────────────────────────────────
+function renderWeek(logs) {
+  const ws = weekStart();
+  const today = todayStr();
+  const row = $('week-row');
+  row.innerHTML = '';
+
+  const logMap = {};
+  logs.forEach(l => logMap[l.date] = l.status);
+
+  let done = 0;
+  const DOW_WEEK = ['月','火','水','木','金','土','日'];
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ws);
+    d.setDate(ws.getDate() + i);
+    const ds = dateStr(d);
+    const status = logMap[ds];
+    const isToday = (ds === today);
+    const isFuture = (ds > today);
+    const isDone = (status === 'completed');
+    if (isDone) done++;
+
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (isDone ? ' done' : isToday ? ' today' : isFuture ? ' future' : '');
+    pill.innerHTML = `
+      <div class="day-label">${DOW_WEEK[i]}</div>
+      <div class="day-mark">${isDone ? '✓' : isToday ? '・' : isFuture ? '・' : '−'}</div>
+    `;
+    row.appendChild(pill);
+  }
+
+  // Progress
+  const pct = Math.round((done / 7) * 100);
+  $('progress-bar').style.width = pct + '%';
+  $('week-count-text').textContent = `${done} / 7 達成`;
+}
+
+function renderRecords(allLogs, monthLogs) {
+  // Streak
+  const sorted = [...allLogs].sort((a,b) => b.date.localeCompare(a.date));
+  $('rec-streak').textContent = calcStreak(sorted);
+
+  // Month
+  const monthDone = monthLogs.filter(l => l.status === 'completed').length;
+  $('rec-month').textContent = monthDone;
+
+  // Total hours
+  let totalMin = 0;
+  allLogs.forEach(l => {
+    const m = durationMin(l);
+    if (m) totalMin += m;
+  });
+  $('rec-hours').textContent = (totalMin / 60).toFixed(1);
+}
+
+function renderSessions(logs) {
+  const completed = logs
+    .filter(l => l.status === 'completed' && l.started_at)
+    .sort((a,b) => b.date.localeCompare(a.date))
+    .slice(0, 10);
+
+  const list = $('session-list');
+  list.innerHTML = '';
+
+  if (completed.length === 0) {
+    list.innerHTML = '<div class="empty-state">まだセッション記録がありません 💪</div>';
+    return;
+  }
+
+  completed.forEach((log, idx) => {
+    const d = new Date(log.date + 'T00:00:00');
+    const min = durationMin(log);
+    const card = document.createElement('div');
+    card.className = 'session-card';
+    card.style.animationDelay = (idx * 50) + 'ms';
+    card.innerHTML = `
+      <div class="session-date-col">
+        <div class="date-num">${d.getDate()}</div>
+        <div class="date-dow">${DOW_JA[d.getDay()]}</div>
+      </div>
+      <div class="session-divider"></div>
+      <div class="session-info">
+        <div class="session-time">${min ? min + ' 分' : '—'}</div>
+        <div class="session-range">${formatTime(log.started_at)} → ${formatTime(log.completed_at)}</div>
+      </div>
+      <div class="session-badge">✓ 完了</div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ─── MAIN FLOW ────────────────────────────────────────────
+async function main() {
+  debug('🔧 LIFF初期化中...');
+
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    debug('✅ LIFF初期化完了', 'ok');
+  } catch(e) {
+    debug('❌ LIFF初期化失敗: ' + e.message, 'err');
+    // デバッグ用：フォールバックでダミーIDを使う
+  }
+
+  // LINE User ID 取得
+  let lineUserId = null;
+  try {
+    if (liff.isLoggedIn()) {
+      const profile = await liff.getProfile();
+      lineUserId = profile.userId;
+      debug('✅ LINE User ID取得: ' + lineUserId.slice(0,8) + '...', 'ok');
+    } else {
+      liff.login();
+      return;
+    }
+  } catch(e) {
+    debug('⚠️ LINE未ログイン or テストモード', 'err');
+    lineUserId = 'U7992c20d68b6de12b011f21d2b2107a5'; // テスト用
+    debug('🔧 テストID使用', '');
+  }
+
+  // クライアント特定
+  debug('📡 クライアント情報取得中...');
+  let clientId = null;
+  try {
+    const clients = await sbFetch(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name`);
+    if (!clients.length) throw new Error('クライアント未登録');
+    clientId = clients[0].id;
+    debug(`✅ クライアント確認: ${clients[0].name} (id=${clientId})`, 'ok');
+  } catch(e) {
+    debug('❌ クライアント取得失敗: ' + e.message, 'err');
+    $('loading-screen').classList.add('hidden');
+    $('main').classList.add('visible');
+    $('session-list').innerHTML = '<div class="empty-state">データ取得に失敗しました</div>';
+    return;
+  }
+
+  // データ取得
+  debug('📊 データ取得中...');
+  try {
+    const today = todayStr();
+    const ws = dateStr(weekStart());
+    const ms = monthStart();
+
+    // 今週のlogs
+    const weekLogs = await sbFetch(
+      `/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${ws}&select=date,status,started_at,completed_at&order=date.desc`
+    );
+
+    // 今月のlogs
+    const monthLogs = await sbFetch(
+      `/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${ms}&select=date,status&order=date.desc`
+    );
+
+    // 全期間のlogs（streak計算用・累計時間用）
+    const allLogs = await sbFetch(
+      `/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status,started_at,completed_at&order=date.desc&limit=200`
+    );
+
+    debug('✅ データ取得完了', 'ok');
+    hideDebug();
+
+    // Render
+    renderWeek(weekLogs);
+    renderRecords(allLogs, monthLogs);
+    renderSessions(allLogs);
+
+  } catch(e) {
+    debug('❌ データ取得失敗: ' + e.message, 'err');
+  }
+
+  // Show main
+  $('loading-screen').classList.add('hidden');
+  $('main').classList.add('visible');
+}
+
+window.addEventListener('load', main);
+</script>
+</body>
+</html>
