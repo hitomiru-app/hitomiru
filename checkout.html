@@ -267,7 +267,7 @@
 
 <script>
 // ═══ CONFIG ═══════════════════════════════
-const LIFF_ID      = 'YOUR_LIFF_ID';   // ← checkout用LIFF IDに差し替え
+const LIFF_ID      = '2009941074-acGm0mti';
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
 const EDGE_FN      = `${SUPABASE_URL}/functions/v1/send-line-message`;
@@ -277,7 +277,7 @@ const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
 let clientId   = null;
 let clientName = '';
 let lineUserId = null;
-let startedAt  = null;   // Date
+let startedAtValue = null;   // "HH:mm" or ISO timestamp
 let logId      = null;
 let timerInterval = null;
 
@@ -293,7 +293,7 @@ async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
   });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
   return r.json();
 }
 async function sbPatch(table, id, body) {
@@ -303,7 +303,7 @@ async function sbPatch(table, id, body) {
                'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('PATCH ' + r.status);
+  if (!r.ok) throw new Error(`PATCH ${r.status}: ${await r.text()}`);
 }
 async function sbInsert(table, body) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
@@ -312,7 +312,7 @@ async function sbInsert(table, body) {
                'Content-Type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error('INSERT ' + r.status);
+  if (!r.ok) throw new Error(`INSERT ${r.status}: ${await r.text()}`);
 }
 function toDateStr(d) {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -322,13 +322,41 @@ function weekMonday() {
   const d = new Date(), day = d.getDay();
   d.setDate(d.getDate()-(day===0?6:day-1)); d.setHours(0,0,0,0); return d;
 }
-function fmtTime(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+function nowTime() {
+  return new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function parseTimeToMinutes(value) {
+  if (!value) return null;
+  const text = String(value);
+  const hm = text.match(/^(\d{1,2}):(\d{2})/);
+  if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+  const d = new Date(text);
+  if (!Number.isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+  return null;
+}
+function fmtTime(value) {
+  const min = parseTimeToMinutes(value);
+  if (min === null) return '—';
+  return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0');
+}
+function fmtElapsedFromStart(startValue) {
+  const startMin = parseTimeToMinutes(startValue);
+  if (startMin === null) return '00:00';
+  const now = new Date();
+  let diff = now.getHours() * 60 + now.getMinutes() - startMin;
+  if (diff < 0) diff += 24 * 60;
+  return `${String(Math.floor(diff / 60)).padStart(2, '0')}:${String(diff % 60).padStart(2, '0')}`;
+}
+function durationMinutes(startValue, endValue) {
+  const startMin = parseTimeToMinutes(startValue);
+  const endMin = parseTimeToMinutes(endValue);
+  if (startMin === null || endMin === null) return 0;
+  let diff = endMin - startMin;
+  if (diff < 0) diff += 24 * 60;
+  return diff;
 }
 function fmtElapsed(ms) {
-  const t = Math.floor(ms/1000);
+  const t = Math.max(0, Math.floor(ms/1000));
   const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
   if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
@@ -356,18 +384,18 @@ function calcStreak(logs) {
 function startTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
-    if (!startedAt) return;
+    if (!startedAtValue) return;
     const el = document.getElementById('timer-value');
-    if (el) el.textContent = fmtElapsed(Date.now()-startedAt.getTime());
+    if (el) el.textContent = fmtElapsedFromStart(startedAtValue);
   }, 1000);
 }
 
 // ═══ RENDER HERO ══════════════════════════
 function renderHeroInProgress(log) {
-  startedAt = new Date(log.started_at);
+  startedAtValue = log.started_at;
   $('hero-card').innerHTML = `
     <div class="timer-label">経過時間</div>
-    <div class="timer-value" id="timer-value">${fmtElapsed(Date.now()-startedAt.getTime())}</div>
+    <div class="timer-value" id="timer-value">${fmtElapsedFromStart(startedAtValue)}</div>
     <div class="checkin-row">
       <div class="checkin-dot"></div>
       <div class="checkin-label">入館時刻</div>
@@ -385,8 +413,7 @@ function renderHeroNotStarted() {
   `;
 }
 function renderHeroCompleted(log) {
-  const min = log.started_at && log.completed_at
-    ? Math.round((new Date(log.completed_at)-new Date(log.started_at))/60000) : 0;
+  const min = durationMinutes(log.started_at, log.completed_at);
   $('hero-card').innerHTML = `
     <div class="already-icon">✅</div>
     <div class="already-title">本日のセッション完了</div>
@@ -398,20 +425,20 @@ function renderHeroCompleted(log) {
 async function handleCheckout() {
   const btn = $('btn-end');
   btn.disabled = true; btn.textContent = '記録中...';
-  const now = new Date().toISOString();
+  const now = nowTime();
   const today = todayStr();
   try {
-    await sbPatch('daily_logs', logId, { status: 'completed', completed_at: now });
+    await sbPatch('daily_logs', logId, { status: 'completed', completed_at: now, updated_at: new Date().toISOString() });
     await sbInsert('events', {
       client_id: clientId, date: today,
       type: 'user_completed',
       message: `${clientName}さんが退館しました`, is_new: true
     });
-    const min = startedAt ? Math.round((new Date(now)-startedAt)/60000) : 0;
+    const min = durationMinutes(startedAtValue, now);
     const msg = `🏁 ${clientName}さん、お疲れ様でした！\n滞在時間：${min}分\nコーチが確認次第メッセージをお送りしますね 💪`;
     fetch(EDGE_FN, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer '+SUPABASE_KEY },
+      headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json', Authorization: 'Bearer '+SUPABASE_KEY },
       body: JSON.stringify({ lineUserId, message: msg })
     }).catch(()=>{});
 
@@ -433,7 +460,7 @@ async function showDone(completedIso, min, today) {
 
   $('done-sub').textContent = clientName + ' さん';
   $('done-duration').textContent = min + ' 分';
-  $('done-range').textContent    = fmtTime(startedAt?.toISOString()) + ' → ' + fmtTime(completedIso);
+  $('done-range').textContent    = fmtTime(startedAtValue) + ' → ' + fmtTime(completedIso);
   $('done-streak').textContent   = streak + ' days';
   $('done-week').textContent     = weekDone + ' / 7';
 
@@ -459,9 +486,17 @@ async function main() {
   // Client
   setStatus('データ取得中...');
   try {
-    const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
+    const safeUserId = encodeURIComponent(lineUserId);
+    const clients = await sbGet(`/rest/v1/clients?or=(token.eq.${safeUserId},line_user_id.eq.${safeUserId})&select=id,name,status,plan_end_date&limit=1`);
     if (!clients.length) throw new Error('このアカウントは登録されていません');
-    clientId = clients[0].id; clientName = clients[0].name;
+    const client = clients[0];
+    if (['lead', 'expired', 'cancelled'].includes(client.status)) {
+      throw new Error('このアカウントはまだ利用開始前、または利用期間外です');
+    }
+    if (client.plan_end_date && todayStr() > client.plan_end_date && client.status === 'monitor') {
+      throw new Error('モニター期間が終了しています');
+    }
+    clientId = client.id; clientName = client.name;
     $('client-name').textContent = clientName;
   } catch(e) { showError(e.message); return; }
 
@@ -469,7 +504,7 @@ async function main() {
   const today = todayStr();
   try {
     const [todayLogs, allLogs, weekLogs] = await Promise.all([
-      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=*&limit=1`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=eq.${today}&select=*&order=id.desc&limit=1`),
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status&order=date.desc&limit=200`),
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${toDateStr(weekMonday())}&select=date,status&order=date.desc`),
     ]);
@@ -481,10 +516,10 @@ async function main() {
     const log = todayLogs[0];
     if (!log || !log.started_at) {
       renderHeroNotStarted();
-    } else if (log.status === 'in_progress') {
+    } else if (log.status === 'in_progress' || (log.started_at && !log.completed_at)) {
       logId = log.id;
       renderHeroInProgress(log);
-    } else if (log.status === 'completed') {
+    } else if (log.status === 'completed' || log.completed_at) {
       renderHeroCompleted(log);
     } else {
       renderHeroNotStarted();
@@ -497,6 +532,7 @@ async function main() {
   requestAnimationFrame(()=>setTimeout(()=>$('main').classList.add('shown'),20));
 }
 
+window.handleCheckout = handleCheckout;
 window.addEventListener('load', main);
 </script>
 </body>
