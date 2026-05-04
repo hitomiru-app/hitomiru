@@ -229,7 +229,7 @@ html, body {
     <div class="done-title" id="done-name">チェックイン完了</div>
     <div class="done-time" id="done-time"></div>
     <div class="streak-card">
-      <div class="streak-label">STREAK</div>
+      <div class="streak-label">連続達成週</div>
       <div class="streak-num" id="streak-value">-</div>
       <div class="streak-sub" id="streak-week">-</div>
     </div>
@@ -332,9 +332,10 @@ async function send(blob) {
   const { error: ue } = await sb.storage.from('checkins').upload(fn, blob, { contentType: blob.type || 'image/jpeg' });
   let url = null;
   if (!ue) { const { data } = sb.storage.from('checkins').getPublicUrl(fn); url = data.publicUrl; }
-  const { data: ex } = await sb.from('daily_logs').select('id').eq('client_id', cid).eq('date', today).maybeSingle();
+  const { data: existingRows } = await sb.from('daily_logs').select('id').eq('client_id', cid).eq('date', today).order('id', { ascending: false }).limit(1);
+  const ex = existingRows && existingRows[0];
   if (ex) {
-    const { error } = await sb.from('daily_logs').update({ status: 'in_progress', started_at: ctime, updated_at: new Date().toISOString() }).eq('id', ex.id);
+    const { error } = await sb.from('daily_logs').update({ status: 'in_progress', started_at: ctime }).eq('id', ex.id);
     if (error) throw error;
   } else {
     const { error } = await sb.from('daily_logs').insert({ client_id: cid, date: today, status: 'in_progress', started_at: ctime, task: 'ジムに行く' });
@@ -349,7 +350,7 @@ async function send(blob) {
     await sb.functions.invoke('send-line-message', {
       body: {
         lineUserId: lineUserId,
-        message: `✅ ${cname}さん、チェックイン完了\n\n開始時刻：${ctime}\n連続チェックイン：${stats.streak}回目🔥\n\n今日もジムに来れました。\nまずは「来た」だけで勝ちです。\n\nコーチが確認次第、メッセージをお送りします💪`
+        message: `✅ ${cname}さん、チェックイン完了\n\n開始時刻：${ctime}\n今週の達成：${stats.wd}/${stats.wt}回\n連続達成週：${stats.streak}週🔥\n\n今日もジムに来れました。\nまずは「来た」だけで勝ちです。\n\nコーチが確認次第、メッセージをお送りします💪`
       }
     });
   } catch (lineErr) {
@@ -363,31 +364,74 @@ async function doneUI() {
   $('done-time').textContent = ctime;
   try {
     const s = await calcStreak();
-    $('streak-value').textContent = s.streak + '回目';
+    $('streak-value').textContent = s.streak + '週';
     $('streak-week').textContent = `今週 ${s.wd}/${s.wt} 達成中`;
   } catch (e) {}
 }
 
+function toDateStr(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function weekMondayOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0);
+  return d;
+}
+function isSuccessStatus(status) {
+  return status === 'in_progress' || status === 'completed';
+}
+function isPlannedStatus(status) {
+  return ['scheduled','in_progress','completed','missed','rescheduled'].includes(status);
+}
+function calcWeeklyStreak(goals, logs) {
+  const successByWeek = {};
+  const plannedByWeek = {};
+  (logs || []).forEach(log => {
+    const week = toDateStr(weekMondayOf(log.date));
+    plannedByWeek[week] = plannedByWeek[week] || 0;
+    successByWeek[week] = successByWeek[week] || 0;
+    if (isPlannedStatus(log.status)) plannedByWeek[week]++;
+    if (isSuccessStatus(log.status)) successByWeek[week]++;
+  });
+  const goalMap = {};
+  (goals || []).forEach(goal => {
+    goalMap[goal.week_start_date] = Number(goal.target_count || 0);
+  });
+  let streak = 0;
+  let cursor = weekMondayOf(new Date().toISOString().split('T')[0]);
+  for (let i = 0; i < 52; i++) {
+    const week = toDateStr(cursor);
+    const target = goalMap[week] || plannedByWeek[week] || 0;
+    const done = successByWeek[week] || 0;
+    if (target <= 0) break;
+    if (done >= target) streak++;
+    else break;
+    cursor = addDays(cursor, -7);
+  }
+  return streak;
+}
 async function calcStreak() {
   const today = new Date(), ts = today.toISOString().split('T')[0];
   const ago = new Date(today); ago.setDate(ago.getDate() - 180);
+  const mon = weekMondayOf(ts);
+  const ms = toDateStr(mon);
+  const sun = toDateStr(addDays(mon, 6));
   const { data: logs } = await sb.from('daily_logs').select('date,status').eq('client_id', cid)
     .gte('date', ago.toISOString().split('T')[0]).lte('date', ts).order('date', { ascending: false });
-  const success = ['in_progress', 'completed'];
-  const planned = ['scheduled', 'in_progress', 'completed', 'missed', 'rescheduled'];
-  const plannedLogs = (logs || []).filter(l => planned.includes(l.status));
-  let s = 0;
-  for (const log of plannedLogs) {
-    if (success.includes(log.status)) s++;
-    else break;
-  }
-  const dow = today.getDay(), dsm = dow === 0 ? 6 : dow - 1;
-  const mon = new Date(today); mon.setDate(mon.getDate() - dsm);
-  const ms = mon.toISOString().split('T')[0];
-  const weekPlanned = plannedLogs.filter(l => l.date >= ms && l.date <= ts);
-  const wd = weekPlanned.filter(l => success.includes(l.status)).length;
-  const wt = Math.max(weekPlanned.length, wd, 1);
-  return { streak: Math.max(s, 1), wd, wt };
+  const { data: goals } = await sb.from('weekly_goals').select('*').eq('client_id', cid).order('week_start_date', { ascending: false }).limit(100);
+  const { data: currentGoals } = await sb.from('weekly_goals').select('*').eq('client_id', cid).eq('week_start_date', ms).limit(1);
+  const currentGoal = currentGoals && currentGoals[0];
+  const weekLogs = (logs || []).filter(l => l.date >= ms && l.date <= sun && isPlannedStatus(l.status));
+  const wd = weekLogs.filter(l => isSuccessStatus(l.status)).length;
+  const wt = Math.max(Number(currentGoal?.target_count || 0), weekLogs.length, 1);
+  return { streak: calcWeeklyStreak(goals || [], logs || []), wd, wt };
 }
 
 function showUnavailable(title, body) {

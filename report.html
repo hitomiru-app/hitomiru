@@ -188,7 +188,7 @@
       <div class="progress-bar" id="progress-bar" style="width:0%"></div>
     </div>
     <div class="progress-meta">
-      <div class="progress-count"><span id="week-done">0</span> / 7 回達成</div>
+      <div class="progress-count"><span id="week-done">0</span> / <span id="week-target">0</span> 回達成</div>
       <div class="progress-pct" id="week-pct">0%</div>
     </div>
   </div>
@@ -200,8 +200,8 @@
       <div class="record-card">
         <div class="record-icon">🔥</div>
         <div class="record-value" id="rec-streak">0</div>
-        <div class="record-unit">days</div>
-        <div class="record-label">連続日数</div>
+        <div class="record-unit">weeks</div>
+        <div class="record-label">連続達成週</div>
       </div>
       <div class="record-card">
         <div class="record-icon">🏆</div>
@@ -228,7 +228,7 @@
 
 <script>
 // ═══ CONFIG ═══════════════════════════════
-const LIFF_ID      = 'YOUR_LIFF_ID';   // ← report用LIFF IDに差し替え
+const LIFF_ID      = '2009941074-uSKRFkFW';
 const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
 const TEST_USER_ID = 'U7992c20d68b6de12b011f21d2b2107a5';
@@ -245,88 +245,135 @@ async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
   });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
   return r.json();
 }
 function toDateStr(d) {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
 }
 function todayStr() { return toDateStr(new Date()); }
 function weekMonday() {
   const d = new Date(), day = d.getDay();
   d.setDate(d.getDate()-(day===0?6:day-1)); d.setHours(0,0,0,0); return d;
 }
+function weekMondayOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0);
+  return d;
+}
 function monthStart() {
   const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return toDateStr(d);
 }
+function parseTimeToMinutes(value) {
+  if (!value) return null;
+  const text = String(value);
+  const hm = text.match(/^(\d{1,2}):(\d{2})/);
+  if (hm) return Number(hm[1]) * 60 + Number(hm[2]);
+  const d = new Date(text);
+  if (!Number.isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+  return null;
+}
 function durationMin(log) {
   if (!log.started_at || !log.completed_at) return null;
-  return Math.round((new Date(log.completed_at)-new Date(log.started_at))/60000);
+  const start = parseTimeToMinutes(log.started_at);
+  const end = parseTimeToMinutes(log.completed_at);
+  if (start === null || end === null) return null;
+  let diff = end - start;
+  if (diff < 0) diff += 24 * 60;
+  return diff;
 }
-function fmtTime(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+function fmtTime(value) {
+  const min = parseTimeToMinutes(value);
+  if (min === null) return '—';
+  return String(Math.floor(min / 60)).padStart(2,'0')+':'+String(min % 60).padStart(2,'0');
 }
 
 // streak: completed が連続している日数（今日未完了でも昨日以前が継続なら維持）
-function calcStreak(logs) {
+function isSuccessStatus(status) {
+  return status === 'in_progress' || status === 'completed';
+}
+function isPlannedStatus(status) {
+  return ['scheduled','in_progress','completed','missed','rescheduled'].includes(status);
+}
+function calcWeeklyStreak(goals, logs) {
+  const successByWeek = {};
+  const plannedByWeek = {};
+  logs.forEach(log => {
+    const week = toDateStr(weekMondayOf(log.date));
+    if (!plannedByWeek[week]) plannedByWeek[week] = 0;
+    if (!successByWeek[week]) successByWeek[week] = 0;
+    if (isPlannedStatus(log.status)) plannedByWeek[week]++;
+    if (isSuccessStatus(log.status)) successByWeek[week]++;
+  });
+
+  const goalMap = {};
+  (goals || []).forEach(goal => {
+    goalMap[goal.week_start_date] = Number(goal.target_count || 0);
+  });
+
   let streak = 0;
-  const today = todayStr();
-  let expect = new Date(); expect.setHours(0,0,0,0);
-  for (const log of logs) {
-    const ld = new Date(log.date+'T00:00:00'); ld.setHours(0,0,0,0);
-    const diff = Math.round((expect-ld)/86400000);
-    if (diff > 1) break;
-    if (log.status === 'completed') {
-      streak++;
-      expect = new Date(ld); expect.setDate(ld.getDate()-1);
-    } else if (log.date === today) {
-      // 今日のログが completed でない場合は飛ばして前日へ
-      expect = new Date(ld); expect.setDate(ld.getDate()-1);
-    } else break;
+  let cursor = weekMonday();
+  for (let i = 0; i < 52; i++) {
+    const week = toDateStr(cursor);
+    const target = goalMap[week] || plannedByWeek[week] || 0;
+    const done = successByWeek[week] || 0;
+    if (target <= 0) break;
+    if (done >= target) streak++;
+    else break;
+    cursor = addDays(cursor, -7);
   }
   return streak;
 }
 
 // ─── RENDER ───────────────────────────────
-function renderWeek(logs) {
+function renderWeek(logs, goal) {
   const logMap = {};
-  logs.forEach(l => logMap[l.date] = l.status);
+  logs.forEach(l => logMap[l.date] = l);
   const mon   = weekMonday(), today = todayStr();
   const LABELS = ['月','火','水','木','金','土','日'];
   const row = $('week-row'); row.innerHTML = '';
   let done = 0;
+  const plannedCount = logs.filter(l => isPlannedStatus(l.status)).length;
+  const target = Math.max(Number(goal?.target_count || 0), plannedCount, 1);
 
   for (let i = 0; i < 7; i++) {
     const d = new Date(mon); d.setDate(mon.getDate()+i);
     const ds = toDateStr(d);
-    const isDone   = logMap[ds] === 'completed';
+    const log = logMap[ds];
+    const isDone   = isSuccessStatus(log?.status);
+    const isPlanned = log && isPlannedStatus(log.status);
+    const isMissed = log?.status === 'missed' || log?.status === 'failed';
     const isToday  = ds === today;
     const isFuture = ds > today;
     if (isDone) done++;
 
     const cls  = isDone ? 'done' : isToday ? 'today' : isFuture ? 'future' : 'past';
-    const mark = isDone ? '✓' : '·';
+    const mark = isDone ? '✓' : isMissed ? '×' : isPlanned ? '予' : '·';
     const el = document.createElement('div');
     el.className = 'day-pill ' + cls;
     el.innerHTML = `<div class="day-label">${LABELS[i]}</div><div class="day-mark">${mark}</div>`;
     row.appendChild(el);
   }
 
-  const pct = Math.round(done/7*100);
+  const pct = Math.min(100, Math.round(done/target*100));
   $('week-done').textContent = done;
+  $('week-target').textContent = target;
   $('week-pct').textContent  = pct + '%';
   setTimeout(() => { $('progress-bar').style.width = pct + '%'; }, 80);
 }
 
-function renderRecords(allLogs, monthLogs) {
-  // streak には allLogs (全期間) を使う
-  const sortedAll = [...allLogs].sort((a,b) => b.date.localeCompare(a.date));
-  $('rec-streak').textContent = calcStreak(sortedAll);
+function renderRecords(allLogs, monthLogs, goals) {
+  $('rec-streak').textContent = calcWeeklyStreak(goals, allLogs);
 
   // 今月完了数
-  $('rec-month').textContent = monthLogs.filter(l => l.status === 'completed').length;
+  $('rec-month').textContent = monthLogs.filter(l => isSuccessStatus(l.status)).length;
 
   // 累計滞在時間（completed & started_at & completed_at があるもの）
   const totalMin = allLogs.reduce((sum, l) => sum + (durationMin(l) || 0), 0);
@@ -388,7 +435,8 @@ async function main() {
   setStatus('データ取得中...');
   let clientId = null;
   try {
-    const clients = await sbGet(`/rest/v1/clients?token=eq.${lineUserId}&select=id,name&limit=1`);
+    const safeUserId = encodeURIComponent(lineUserId);
+    const clients = await sbGet(`/rest/v1/clients?or=(token.eq.${safeUserId},line_user_id.eq.${safeUserId})&select=id,name&limit=1`);
     if (!clients.length) throw new Error('このアカウントは登録されていません');
     clientId = clients[0].id;
     $('client-name').textContent = clients[0].name;
@@ -397,19 +445,25 @@ async function main() {
   // Data（3本まとめて取得）
   try {
     const monDs  = toDateStr(weekMonday());
+    const sunDs  = toDateStr(addDays(weekMonday(), 6));
     const monDs2 = monthStart();
 
-    const [weekLogs, monthLogs, allLogs] = await Promise.all([
+    const [weekLogs, monthLogs, allLogs, currentGoals, allGoals] = await Promise.all([
       // 今週（completed判定用）
-      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs}&select=date,status&order=date.desc`),
+      sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs}&date=lte.${sunDs}&select=date,status&order=date.desc`),
       // 今月（今月達成数）
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&date=gte.${monDs2}&select=date,status&order=date.desc`),
       // 全期間（streak・累計・セッション履歴）— started_at/completed_at も必要
       sbGet(`/rest/v1/daily_logs?client_id=eq.${clientId}&select=date,status,started_at,completed_at&order=date.desc&limit=500`),
+      // 今週の目標回数
+      sbGet(`/rest/v1/weekly_goals?client_id=eq.${clientId}&week_start_date=eq.${monDs}&select=*&limit=1`),
+      // 連続達成週の計算用
+      sbGet(`/rest/v1/weekly_goals?client_id=eq.${clientId}&select=*&order=week_start_date.desc&limit=100`),
     ]);
+    const currentGoal = currentGoals[0] || null;
 
-    renderWeek(weekLogs);
-    renderRecords(allLogs, monthLogs);
+    renderWeek(weekLogs, currentGoal);
+    renderRecords(allLogs, monthLogs, allGoals);
     renderSessions(allLogs);
 
   } catch(e) { showError('データ取得に失敗しました: ' + e.message); return; }
