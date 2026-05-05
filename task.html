@@ -80,9 +80,9 @@
 
   /* ── キュー画面 ── */
   .queue-wrap { padding: 16px 0 8px; }
-  .queue-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .queue-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
   .queue-eyebrow { font-size:10px; font-weight:900; color:var(--yd); letter-spacing:.14em; text-transform:uppercase; }
-  .queue-help { font-size:11px; color:var(--muted); line-height:1.6; }
+  .queue-help { font-size:11px; color:var(--muted); line-height:1.6; margin-top:3px; }
   .queue-now-card { background:#fff; border:1.5px solid var(--y); border-radius:22px; padding:18px; box-shadow:0 10px 30px rgba(255,189,0,.14); margin-bottom:14px; }
   .queue-now-label { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:99px; background:var(--ink); color:#fff; font-size:10px; font-weight:900; letter-spacing:.08em; margin-bottom:12px; }
   .queue-title { font-size:22px; font-weight:900; letter-spacing:-.04em; line-height:1.35; color:var(--ink); }
@@ -97,6 +97,19 @@
   .queue-section { margin-top:18px; }
   .queue-section-title { font-size:11px; font-weight:900; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
   .queue-section-title::after { content:""; flex:1; height:1px; background:var(--line); }
+  .queue-list { display:flex; flex-direction:column; gap:8px; }
+  .queue-item { background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px; display:grid; grid-template-columns:30px 1fr auto auto; align-items:center; gap:10px; }
+  .queue-item.now { border-color:var(--y); background:#FFFDF5; box-shadow:0 6px 18px rgba(255,189,0,.10); }
+  .queue-item.done { opacity:.48; }
+  .queue-item-index { width:28px; height:28px; border-radius:50%; background:var(--yl); color:var(--yd); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; }
+  .queue-item.now .queue-item-index { background:var(--y); color:var(--ink); }
+  .queue-item-body { min-width:0; }
+  .queue-item-title { font-size:14px; font-weight:850; color:var(--ink); line-height:1.35; }
+  .queue-item-meta { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.45; }
+  .queue-item-badge { display:inline-flex; align-items:center; padding:2px 7px; border-radius:99px; background:var(--ink); color:#fff; font-size:9px; font-weight:900; letter-spacing:.06em; margin-left:6px; vertical-align:middle; }
+  .queue-order-btns { display:flex; flex-direction:column; gap:4px; }
+  .queue-order-btn { width:28px; height:24px; border-radius:8px; background:#F7F7F7; border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; }
+  .queue-order-btn:disabled { opacity:.25; }
   .queue-mini { background:#fff; border:1px solid var(--line); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:12px; margin-bottom:8px; }
   .queue-mini-num { width:26px; height:26px; border-radius:50%; background:var(--yl); color:var(--yd); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; flex-shrink:0; }
   .queue-mini-main { flex:1; min-width:0; }
@@ -104,6 +117,7 @@
   .queue-mini-meta { font-size:11px; color:var(--muted); margin-top:3px; }
   .queue-empty { background:#fff; border:1px dashed #DDD; border-radius:18px; padding:24px; text-align:center; color:var(--muted); font-size:13px; line-height:1.8; }
   .queue-pastdue { margin-top:14px; }
+  @media (max-width:390px){ .queue-item{grid-template-columns:28px 1fr auto auto; gap:8px;}.queue-order-btn{width:25px;height:23px}.queue-title{font-size:20px} }
 
   /* ── ダッシュボード ── */
   .dash-wrap { padding: 16px 0 8px; display: flex; flex-direction: column; gap: 12px; }
@@ -730,6 +744,46 @@ function queueSort(a,b){
   return at.localeCompare(bt);
 }
 
+function queueKey(){
+  const who=urlClientId!==null?`client_${urlClientId}`:"self";
+  return `hitomiru_queue_${who}_${today()}`;
+}
+
+function getQueueOrder(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(queueKey())||"[]");
+    return Array.isArray(arr)?arr.map(String):[];
+  }catch(e){ return []; }
+}
+
+function saveQueueOrder(ids){
+  localStorage.setItem(queueKey(), JSON.stringify(ids.map(String)));
+}
+
+function orderedQueue(tasks){
+  const base=[...tasks].sort(queueSort);
+  const ids=base.map(t=>String(t.id));
+  const saved=getQueueOrder().filter(id=>ids.includes(id));
+  const fresh=ids.filter(id=>!saved.includes(id));
+  const order=[...saved,...fresh];
+  const map=new Map(base.map(t=>[String(t.id),t]));
+  saveQueueOrder(order);
+  return order.map(id=>map.get(id)).filter(Boolean);
+}
+
+function moveQueueTask(id,dir){
+  const key=String(id);
+  const todayTasks=(urlClientId!==null?getClientTasks(urlClientId):getAllTasks()).filter(t=>t.date===today()&&!t.done);
+  const current=orderedQueue(todayTasks).map(t=>String(t.id));
+  const i=current.indexOf(key);
+  if(i<0)return;
+  const j=i+dir;
+  if(j<0||j>=current.length)return;
+  [current[i],current[j]]=[current[j],current[i]];
+  saveQueueOrder(current);
+  render();
+}
+
 function taskMetaParts(t){
   const g=getGoal(t.goal_id), cat=getCat(t.cat);
   return [fmtTimeRange(t), g?g.title:"", cat?cat.label:"", t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean);
@@ -758,53 +812,21 @@ function renderQueueNow(t){
   </div>`;
 }
 
-function renderQueueMini(t,i){
-  return `<div class="queue-mini">
-    <div class="queue-mini-num">${i}</div>
-    <div class="queue-mini-main">
-      <div class="queue-mini-title">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
-      <div class="queue-mini-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}</div>
-    </div>
-    <div class="chk${t.done?" checked":""}" data-chk="${t.id}">${t.done?checkSVG():""}</div>
-  </div>`;
-}
-
-function queueSort(a,b){
-  const ad=a.done?1:0, bd=b.done?1:0;
-  if(ad!==bd)return ad-bd;
-  const ao=isOverdue(a)?0:isStarted(a)?1:a.start_time?2:3;
-  const bo=isOverdue(b)?0:isStarted(b)?1:b.start_time?2:3;
-  if(ao!==bo)return ao-bo;
-  const at=a.start_time||a.time||"99:99";
-  const bt=b.start_time||b.time||"99:99";
-  return at.localeCompare(bt);
-}
-
-function taskMetaParts(t){
-  const g=getGoal(t.goal_id), cat=getCat(t.cat);
-  return [fmtTimeRange(t), g?g.title:"", cat?cat.label:"", t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean);
-}
-
-function renderQueueNow(t){
-  if(!t){
-    return `<div class="queue-empty">
-      今日のキューは空です。<br>
-      まずは下の「タスクを追加」から、今日の最初の1個だけ入れましょう。
-    </div>`;
-  }
+function renderQueueItem(t,i,total){
   const raw=String(t.id);
-  const started=String(S.activeStartedId)===raw || isStarted(t);
-  return `<div class="queue-now-card">
-    <div class="queue-now-label">${started?"進行中":"NOW"}  今やる</div>
-    <div class="queue-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
-    <div class="queue-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
-    ${started&&!t.done?`<div class="queue-started">着手中です。ここまで来たら、あとは少し進めるだけ。</div>`:""}
-    <div class="queue-actions">
-      <button class="queue-btn start" data-start-task="${raw}">${started?"着手中":"▶ 着手"}</button>
-      <button class="queue-btn done" data-chk="${raw}">✅ 完了</button>
-      <button class="queue-btn sub" data-edit="${t.isRepeat?"":t.id}" ${t.isRepeat?"disabled style='opacity:.35'":""}>編集</button>
-      <button class="queue-btn sub" data-queue-reschedule="${raw}">↪ リスケ</button>
+  const isNow=i===0&&!t.done;
+  const meta=taskMetaParts(t).join("  ·  ") || "時間指定なし";
+  return `<div class="queue-item${isNow?" now":""}${t.done?" done":""}">
+    <div class="queue-item-index">${i+1}</div>
+    <div class="queue-item-body">
+      <div class="queue-item-title">${esc(t.title)}${isNow?`<span class="queue-item-badge">NOW</span>`:""}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
+      <div class="queue-item-meta">${meta}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
     </div>
+    <div class="queue-order-btns">
+      <button class="queue-order-btn" data-queue-move="${raw}" data-dir="-1" ${i===0?"disabled":""}>↑</button>
+      <button class="queue-order-btn" data-queue-move="${raw}" data-dir="1" ${i===total-1?"disabled":""}>↓</button>
+    </div>
+    <div class="chk${t.done?" checked":""}" data-chk="${raw}">${t.done?checkSVG():""}</div>
   </div>`;
 }
 
@@ -820,12 +842,10 @@ function renderQueueMini(t,i){
 }
 
 function userToday(filtered, allTasks=[]){
-  const sorted=[...filtered].sort(queueSort);
-  const undone=sorted.filter(t=>!t.done);
-  const done=sorted.filter(t=>t.done);
+  const ordered=orderedQueue(filtered);
+  const undone=ordered.filter(t=>!t.done);
+  const done=ordered.filter(t=>t.done);
   const nowTask=undone[0]||null;
-  const nextTasks=undone.slice(1,4);
-  const laterTasks=undone.slice(4);
   const doneCount=done.length;
   const toggleDoneBtn = doneCount > 0 ? `<button class="tog-btn" id="user-toggle-done">${S.showUserDone ? `完了済みを隠す (${doneCount}件)` : `完了済みを表示 (${doneCount}件)`}</button>` : "";
 
@@ -862,12 +882,14 @@ function userToday(filtered, allTasks=[]){
     <div class="queue-head">
       <div>
         <div class="queue-eyebrow">TODAY QUEUE</div>
-        <div class="queue-help">全部を見ずに、まず一番上だけ。固定タスクも今日分はここに入ります。</div>
+        <div class="queue-help">時間は目安でOK。今日やる順番を上から並べて、まず一番上だけ進めます。</div>
       </div>
     </div>
     ${renderQueueNow(nowTask)}
-    ${nextTasks.length?`<div class="queue-section"><div class="queue-section-title">NEXT</div>${nextTasks.map((t,i)=>renderQueueMini(t,i+1)).join("")}</div>`:""}
-    ${laterTasks.length?`<div class="queue-section"><div class="queue-section-title">LATER</div>${laterTasks.map((t,i)=>renderQueueMini(t,i+4)).join("")}</div>`:""}
+    ${undone.length?`<div class="queue-section">
+      <div class="queue-section-title">今日のキュー</div>
+      <div class="queue-list">${undone.map((t,i)=>renderQueueItem(t,i,undone.length)).join("")}</div>
+    </div>`:""}
     ${S.showUserDone&&done.length?`<div class="queue-section"><div class="queue-section-title">DONE</div>${done.map((t,i)=>renderQueueMini(t,i+1)).join("")}</div>`:""}
     ${toggleDoneBtn}
     ${pastDueSection}
@@ -1322,6 +1344,10 @@ function bind(){
     e.stopPropagation();
     S.activeStartedId=el.dataset.startTask;
     render();
+  }));
+  document.querySelectorAll("[data-queue-move]").forEach(el=>el.addEventListener("click",e=>{
+    e.stopPropagation();
+    moveQueueTask(el.dataset.queueMove, Number(el.dataset.dir));
   }));
   document.querySelectorAll("[data-queue-reschedule]").forEach(el=>el.addEventListener("click",e=>{
     e.stopPropagation();
