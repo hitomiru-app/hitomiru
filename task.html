@@ -842,10 +842,13 @@ function renderQueueMini(t,i){
 }
 
 function userToday(filtered, allTasks=[]){
-  const ordered=orderedQueue(filtered);
+  const baseToday = (allTasks && allTasks.length ? allTasks : filtered).filter(t=>t.date===today());
+  const visibleToday = S.catFilter==="all" ? baseToday : baseToday.filter(t=>t.cat===S.catFilter);
+  const ordered=orderedQueue(visibleToday);
   const undone=ordered.filter(t=>!t.done);
   const done=ordered.filter(t=>t.done);
   const nowTask=undone[0]||null;
+  const queueList=undone.slice(1);
   const doneCount=done.length;
   const toggleDoneBtn = doneCount > 0 ? `<button class="tog-btn" id="user-toggle-done">${S.showUserDone ? `完了済みを隠す (${doneCount}件)` : `完了済みを表示 (${doneCount}件)`}</button>` : "";
 
@@ -886,9 +889,9 @@ function userToday(filtered, allTasks=[]){
       </div>
     </div>
     ${renderQueueNow(nowTask)}
-    ${undone.length?`<div class="queue-section">
-      <div class="queue-section-title">今日のキュー</div>
-      <div class="queue-list">${undone.map((t,i)=>renderQueueItem(t,i,undone.length)).join("")}</div>
+    ${queueList.length?`<div class="queue-section">
+      <div class="queue-section-title">このあと</div>
+      <div class="queue-list">${queueList.map((t,i)=>renderQueueItem(t,i+1,undone.length)).join("")}</div>
     </div>`:""}
     ${S.showUserDone&&done.length?`<div class="queue-section"><div class="queue-section-title">DONE</div>${done.map((t,i)=>renderQueueMini(t,i+1)).join("")}</div>`:""}
     ${toggleDoneBtn}
