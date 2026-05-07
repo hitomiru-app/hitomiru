@@ -77,6 +77,8 @@
   .overdue-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
   .rep-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #EEF2FF; color: var(--blue); font-weight: 600; margin-left: 4px; }
   .started-badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #FFFBEA; color: var(--yd); font-weight: 600; margin-left: 4px; }
+  .task-link-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:99px; background:#111827; color:#fff; text-decoration:none; font-size:11px; font-weight:800; white-space:nowrap; }
+  .task-link-chip.subtle { background:#FFFBEA; color:var(--yd); border:1px solid rgba(255,189,0,.35); }
 
   /* ── キュー画面 ── */
   .queue-wrap { padding: 16px 0 8px; }
@@ -457,6 +459,22 @@ function overdueTemplates(name, title) {
 function repeatMatchesToday(r){const dow=new Date().getDay();if(r==="daily")return true;if(r==="weekday")return dow>=1&&dow<=5;if(r==="weekend")return dow===0||dow===6;if(r.startsWith("weekly:"))return +r.split(":")[1]===dow;if(r.startsWith("monthly:"))return +r.split(":")[1]===new Date().getDate();return false;}
 function repeatLabel(r){const f=REPEAT_OPTS.find(o=>o.v===r);return f?f.l:r;}
 
+function normalizeLinkUrl(v){
+  const s=(v||"").trim();
+  if(!s)return "";
+  if(/^https?:\/\//i.test(s))return s;
+  return "https://" + s;
+}
+function safeHref(v){
+  const u=normalizeLinkUrl(v);
+  if(!u)return "";
+  return /^https?:\/\//i.test(u) ? u : "";
+}
+function linkChip(t, label="開く"){
+  const href=safeHref(t.link_url);
+  return href ? `<a class="task-link-chip" href="${esc(href)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label}</a>` : "";
+}
+
 // ── アラート判定 ─────────────────────────────────────────
 // クライアントのタスク履歴からアラートを計算
 function calcClientAlert(clientTasks) {
@@ -527,10 +545,13 @@ async function loadAll() {
   render();
 }
 async function addTask(data){
-  const rows=await sb("POST","tasks",{goal_id:data.gid?+data.gid:null,title:data.title,cat:data.cat,date:data.date,start_time:data.start_time||null,time:data.time||null,done:false,client_id:data.client_id||null});
+  const payload={goal_id:data.gid?+data.gid:null,title:data.title,cat:data.cat,date:data.date,start_time:data.start_time||null,time:data.time||null,done:false,client_id:data.client_id||null};
+  if(data.link_url) payload.link_url=normalizeLinkUrl(data.link_url);
+  const rows=await sb("POST","tasks",payload);
   if(rows&&rows[0])S.tasks.push(rows[0]);render();
 }
 async function updateTask(id,data){
+  if(Object.prototype.hasOwnProperty.call(data,"link_url")) data.link_url=normalizeLinkUrl(data.link_url);
   await sb("PATCH","tasks",data,`?id=eq.${id}`);
   S.tasks=S.tasks.map(t=>t.id===id?{...t,...data}:t);render();
 }
@@ -551,8 +572,15 @@ async function deleteGoal(id){
   S.goals=S.goals.filter(g=>g.id!==id);render();
 }
 async function addRepeat(data){
-  const rows=await sb("POST","repeats",{goal_id:data.gid?+data.gid:null,title:data.title,cat:data.cat,start_time:data.start_time||null,time:data.time||null,repeat:data.repeat,client_id:data.client_id||null});
+  const payload={goal_id:data.gid?+data.gid:null,title:data.title,cat:data.cat,start_time:data.start_time||null,time:data.time||null,repeat:data.repeat,client_id:data.client_id||null};
+  if(data.link_url) payload.link_url=normalizeLinkUrl(data.link_url);
+  const rows=await sb("POST","repeats",payload);
   if(rows&&rows[0])S.repeats.push(rows[0]);render();
+}
+async function updateRepeat(id,data){
+  if(Object.prototype.hasOwnProperty.call(data,"link_url")) data.link_url=normalizeLinkUrl(data.link_url);
+  await sb("PATCH","repeats",data,`?id=eq.${id}`);
+  S.repeats=S.repeats.map(r=>r.id===id?{...r,...data}:r);render();
 }
 async function deleteRepeat(id){
   await sb("DELETE","repeats","",`?id=eq.${id}`);
@@ -603,7 +631,7 @@ function getTodayRepeats(clientId=null){
       id:`r${r.id}`,rid:r.id,goal_id:r.goal_id,cat:r.cat,title:r.title,
       start_time:r.start_time||"",time:r.time||"",date:today(),
       done:!!S.repeatDone.find(d=>d.repeat_id===r.id&&d.date===today()),
-      isRepeat:true,repeatStr:r.repeat,client_id:r.client_id||null,
+      isRepeat:true,repeatStr:r.repeat,client_id:r.client_id||null,link_url:r.link_url||"",
     }));
 }
 function getAllTasks(){return [...S.tasks,...getTodayRepeats()];}
@@ -726,7 +754,7 @@ function renderRowUser(t){
     <div class="chk${t.done?" checked":""}" data-chk="${t.id}">${t.done?checkSVG():""}</div>
     <div style="flex:1;min-width:0">
       <div class="task-title"${od?` style="color:var(--red)"`:""}>${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}${st&&!od?`<span class="started-badge">開始時間</span>`:""}</div>
-      ${meta?`<div class="task-meta">${meta}${od?`  <span style="color:var(--red);font-weight:600">時間切れ</span>`:""}</div>`:""}
+      <div class="task-meta">${meta?`${meta}${od?`  <span style="color:var(--red);font-weight:600">時間切れ</span>`:""}`:""} ${linkChip(t)}</div>
     </div>
     ${od&&!t.done?`<div class="overdue-dot"></div>`:""}
     ${editBtns}
@@ -807,7 +835,7 @@ function renderQueueNow(t){
       <button class="queue-btn start" data-start-task="${raw}">${started?"着手中":"▶ 着手"}</button>
       <button class="queue-btn done" data-chk="${raw}">✅ 完了</button>
       <button class="queue-btn sub" data-edit="${t.isRepeat?"":t.id}" ${t.isRepeat?"disabled style='opacity:.35'":""}>編集</button>
-      <button class="queue-btn sub" data-queue-reschedule="${raw}">↪ リスケ</button>
+      ${safeHref(t.link_url)?`<a class="queue-btn sub" href="${esc(safeHref(t.link_url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;text-align:center">リンクを開く</a>`:`<button class="queue-btn sub" data-queue-reschedule="${raw}">↪ リスケ</button>`}
     </div>
   </div>`;
 }
@@ -820,7 +848,7 @@ function renderQueueItem(t,i,total){
     <div class="queue-item-index">${i+1}</div>
     <div class="queue-item-body">
       <div class="queue-item-title">${esc(t.title)}${isNow?`<span class="queue-item-badge">NOW</span>`:""}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
-      <div class="queue-item-meta">${meta}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
+      <div class="queue-item-meta">${meta}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""} ${linkChip(t,"行き先")}</div>
     </div>
     <div class="queue-order-btns">
       <button class="queue-order-btn" data-queue-move="${raw}" data-dir="-1" ${i===0?"disabled":""}>↑</button>
@@ -913,6 +941,7 @@ function editFormHTML(){
         <div class="form-lbl">時間（任意）</div>
         <div class="time-row-form"><select class="form-sel" id="e-start">${timeOptions(t.start_time||"")}</select><span class="time-arrow">→</span><select class="form-sel" id="e-end">${timeOptions(t.time||"")}</select></div>
         <input class="form-sel" type="date" id="e-date" value="${t.date}" style="width:100%">
+        <input class="form-input" id="e-link" value="${esc(t.link_url||"")}" placeholder="リンク（任意）例：https://...">
         <div class="form-btns">
           <button class="form-ok" id="e-ok">保存する</button>
           <button class="form-cancel" id="e-close">キャンセル</button>
@@ -966,6 +995,7 @@ function userRepeats(){
     <div class="form-lbl">繰り返し</div><select class="form-sel" id="rp-repeat">${rOpts}</select>
     <div class="form-lbl">時間</div><div class="time-row-form"><select class="form-sel" id="rp-start">${timeOptions(null)}</select><span class="time-arrow">→</span><select class="form-sel" id="rp-end">${timeOptions(null)}</select></div>
     <div class="form-row"><select class="form-sel" id="rp-goal">${gOpts}</select><select class="form-sel" id="rp-cat">${cOpts}</select></div>
+    <input class="form-input" id="rp-link" placeholder="リンク（任意）毎回開く場所">
     <div class="form-btns"><button class="form-ok" id="rp-ok" style="background:var(--blue);color:#fff">追加する</button><button class="form-cancel" id="rp-cancel">キャンセル</button></div>
   </div>`:`<button class="dashed-btn" id="repeat-add-open">+ 固定タスクを追加</button>`;
   const rows=S.repeats.length===0?`<div class="empty">固定タスクなし</div>`:
@@ -974,8 +1004,9 @@ function userRepeats(){
       const done=!!S.repeatDone.find(d=>d.repeat_id===r.id&&d.date===today());
       const ts=r.start_time&&r.time?`${r.start_time}→${r.time}`:r.start_time||r.time||"";
       return `<div class="rep-row"><div style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0"></div>
-        <div class="rep-info"><div style="font-size:14px;font-weight:500">${esc(r.title)}</div><div class="task-meta">${repeatLabel(r.repeat)}${ts?"  ·  "+ts:""}  ·  ${cat.label}${g?"  ·  "+g.title:""}</div></div>
+        <div class="rep-info"><div style="font-size:14px;font-weight:500">${esc(r.title)}</div><div class="task-meta">${repeatLabel(r.repeat)}${ts?"  ·  "+ts:""}  ·  ${cat.label}${g?"  ·  "+g.title:""} ${linkChip(r)}</div></div>
         <span style="font-size:11px;color:${done?"var(--green)":"var(--muted)"};white-space:nowrap">${done?"今日完了":"今日未完"}</span>
+        <button class="task-edit-btn" data-rep-link="${r.id}">URL</button>
         <button class="del-btn" data-rep-del="${r.id}">×</button>
       </div>`;
     }).join("");
@@ -1324,6 +1355,7 @@ function renderAddArea(){
     <div class="form-lbl">時間（任意）</div>
     <div class="time-row-form"><select class="form-sel" id="f-start">${timeOptions(S.draft.start_time||null)}</select><span class="time-arrow">→</span><select class="form-sel" id="f-end">${timeOptions(S.draft.time||null)}</select></div>
     <input class="form-sel" type="date" id="f-date" value="${S.draft.date}" style="width:100%">
+    <input class="form-input" id="f-link" placeholder="リンク（任意）Notion / Google Docs / 参考URLなど">
     <div class="form-btns"><button class="form-ok" id="f-ok">追加する</button><button class="form-cancel" id="f-cancel">キャンセル</button></div>
   </div></div>`;
 }
@@ -1341,6 +1373,14 @@ function bind(){
   document.querySelectorAll("[data-goal]").forEach(el=>el.addEventListener("click",()=>{const id=+el.dataset.goal;S.openGoal=S.openGoal===id?null:id;render();}));
   document.querySelectorAll("[data-goal-del]").forEach(el=>el.addEventListener("click",e=>{e.stopPropagation();if(confirm("この目標を削除しますか？"))deleteGoal(+el.dataset.goalDel);}));
   document.querySelectorAll("[data-rep-del]").forEach(el=>el.addEventListener("click",e=>{e.stopPropagation();if(confirm("この固定タスクを削除しますか？"))deleteRepeat(+el.dataset.repDel);}));
+  document.querySelectorAll("[data-rep-link]").forEach(el=>el.addEventListener("click",e=>{
+    e.stopPropagation();
+    const r=S.repeats.find(x=>x.id===+el.dataset.repLink);
+    if(!r)return;
+    const v=prompt("この固定タスクで開くURLを入れてください", r.link_url||"");
+    if(v===null)return;
+    updateRepeat(r.id,{link_url:v});
+  }));
   document.querySelectorAll("[data-calday]").forEach(el=>el.addEventListener("click",()=>{S.calSel=el.dataset.calday;render();}));
 
   document.querySelectorAll("[data-start-task]").forEach(el=>el.addEventListener("click",e=>{
@@ -1425,7 +1465,7 @@ function bind(){
   if(fok)fok.addEventListener("click",async()=>{
     const title=document.getElementById("f-title").value.trim();
     if(!title)return;
-    await addTask({gid:document.getElementById("f-goal").value,cat:document.getElementById("f-cat").value,title,start_time:document.getElementById("f-start").value||"",time:document.getElementById("f-end").value||"",date:document.getElementById("f-date").value||today(),client_id:urlClientId});
+    await addTask({gid:document.getElementById("f-goal").value,cat:document.getElementById("f-cat").value,title,start_time:document.getElementById("f-start").value||"",time:document.getElementById("f-end").value||"",date:document.getElementById("f-date").value||today(),client_id:urlClientId,link_url:document.getElementById("f-link").value||""});
     S.adding=false;
   });
   const fc=document.getElementById("f-cancel");
@@ -1438,7 +1478,7 @@ function bind(){
   if(rpok)rpok.addEventListener("click",async()=>{
     const title=document.getElementById("rp-title").value.trim();
     if(!title)return;
-    await addRepeat({gid:document.getElementById("rp-goal").value,cat:document.getElementById("rp-cat").value,title,start_time:document.getElementById("rp-start").value||"",time:document.getElementById("rp-end").value||"",repeat:document.getElementById("rp-repeat").value,client_id:urlClientId});
+    await addRepeat({gid:document.getElementById("rp-goal").value,cat:document.getElementById("rp-cat").value,title,start_time:document.getElementById("rp-start").value||"",time:document.getElementById("rp-end").value||"",repeat:document.getElementById("rp-repeat").value,client_id:urlClientId,link_url:document.getElementById("rp-link").value||""});
     S.addingRepeat=false;
   });
   const rpc=document.getElementById("rp-cancel");
@@ -1539,6 +1579,7 @@ function bind(){
       start_time:document.getElementById("e-start").value||null,
       time:document.getElementById("e-end").value||null,
       date:document.getElementById("e-date").value||today(),
+      link_url:document.getElementById("e-link").value||"",
     });
     S.editingTaskId=null;
   });
