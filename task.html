@@ -90,6 +90,14 @@
   .queue-title { font-size:22px; font-weight:900; letter-spacing:-.04em; line-height:1.35; color:var(--ink); }
   .queue-title.done-txt { text-decoration:line-through; color:var(--muted); }
   .queue-meta { font-size:12px; color:var(--muted); margin-top:8px; line-height:1.7; }
+  .task-context { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .goal-chip { display:inline-flex; align-items:center; gap:5px; max-width:100%; padding:5px 9px; border-radius:999px; background:#FFF3C7; color:var(--yd); border:1px solid rgba(180,127,0,.22); font-size:11px; font-weight:900; line-height:1.2; }
+  .goal-chip .goal-chip-label { color:rgba(120,84,0,.62); font-size:9px; letter-spacing:.08em; text-transform:uppercase; }
+  .goal-chip .goal-chip-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .goal-chip.none { background:#F5F5F5; color:var(--muted); border-color:var(--line); }
+  .cat-chip { display:inline-flex; align-items:center; padding:5px 8px; border-radius:999px; background:#fff; color:var(--muted); border:1px solid var(--line); font-size:10px; font-weight:800; }
+  .queue-now-card.active .goal-chip { background:#151515; color:#fff; border-color:#151515; }
+  .queue-now-card.active .goal-chip .goal-chip-label { color:rgba(255,255,255,.58); }
   .queue-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:16px; }
   .queue-btn { padding:12px 10px; border-radius:14px; font-weight:900; font-size:13px; }
   .queue-btn.start { background:var(--y); color:var(--ink); box-shadow:0 4px 16px rgba(255,189,0,.28); }
@@ -826,8 +834,16 @@ function moveQueueTask(id,dir){
 }
 
 function taskMetaParts(t){
+  const cat=getCat(t.cat);
+  return [fmtTimeRange(t), cat?cat.label:"", t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean);
+}
+function goalContextHTML(t, showCat=false){
   const g=getGoal(t.goal_id), cat=getCat(t.cat);
-  return [fmtTimeRange(t), g?g.title:"", cat?cat.label:"", t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean);
+  const goal = g
+    ? `<span class="goal-chip"><span class="goal-chip-label">GOAL</span><span class="goal-chip-title">${esc(g.title)}</span></span>`
+    : `<span class="goal-chip none"><span class="goal-chip-label">GOAL</span><span class="goal-chip-title">未設定</span></span>`;
+  const catChip = showCat && cat ? `<span class="cat-chip">${esc(cat.label)}</span>` : "";
+  return `<div class="task-context">${goal}${catChip}</div>`;
 }
 
 function renderQueueNow(t){
@@ -843,6 +859,7 @@ function renderQueueNow(t){
   const startedAt=activeByClick&&S.activeStartedAt ? S.activeStartedAt : (t.start_time || nowHHMM());
   return `<div class="queue-now-card${started&&!t.done?" active":""}">
     <div class="queue-now-label${started&&!t.done?" active":""}">${started?"● 進行中":"NOW"}  ${started?"作業中":"今やる"}</div>
+    ${goalContextHTML(t,true)}
     <div class="queue-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
     <div class="queue-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
     ${started&&!t.done?`<div class="queue-started active">
@@ -865,6 +882,7 @@ function renderQueueItem(t,i,total){
   return `<div class="queue-item${isNow?" now":""}${t.done?" done":""}">
     <div class="queue-item-index">${i+1}</div>
     <div class="queue-item-body">
+      ${goalContextHTML(t,true)}
       <div class="queue-item-title">${esc(t.title)}${isNow?`<span class="queue-item-badge">NOW</span>`:""}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
       <div class="queue-item-meta">${meta}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""} ${linkChip(t,"行き先")}</div>
     </div>
@@ -880,6 +898,7 @@ function renderQueueMini(t,i){
   return `<div class="queue-mini">
     <div class="queue-mini-num">${i}</div>
     <div class="queue-mini-main">
+      ${goalContextHTML(t,true)}
       <div class="queue-mini-title">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
       <div class="queue-mini-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}</div>
     </div>
@@ -1328,6 +1347,7 @@ function mgrCard(t, client){
     :`<div class="m-actions">${lineBtn(checkMsg,"状況を確認する","m-btn-dark")}</div>`;
   return `<div class="m-card${od?" overdue":st?" started":t.done?" done-card":""}">
     <div class="m-card-inner">
+      ${goalContextHTML(t,true)}
       <div class="m-card-top"><div class="m-dot ${sk}"></div><div class="m-task-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div><div class="m-status-tag ${sk}">${sl}</div></div>
       <div class="m-meta">${meta}</div>
     </div>${actions}
