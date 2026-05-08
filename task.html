@@ -96,6 +96,19 @@
   .queue-btn.done { background:var(--ink); color:#fff; }
   .queue-btn.sub { background:#fff; color:var(--muted); border:1px solid var(--line); }
   .queue-started { margin-top:10px; color:var(--yd); font-size:12px; font-weight:800; }
+  .queue-now-card.active { position:relative; overflow:hidden; border:2px solid var(--yd); background:linear-gradient(180deg,#FFF8DE 0%,#fff 72%); box-shadow:0 18px 46px rgba(255,189,0,.28); }
+  .queue-now-card.active::before { content:""; position:absolute; top:0; left:0; right:0; height:5px; background:linear-gradient(90deg,var(--y),var(--yd),var(--y)); background-size:180% 100%; animation:activeFlow 1.25s linear infinite; }
+  @keyframes activeFlow { to { background-position:180% 0; } }
+  .queue-now-label.active { background:#151515; color:#fff; box-shadow:0 8px 18px rgba(0,0,0,.16); }
+  .queue-started.active { margin-top:12px; padding:12px 13px; border-radius:16px; background:#151515; color:#fff; display:flex; align-items:center; gap:10px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); }
+  .queue-live-dot { width:10px; height:10px; border-radius:50%; background:#2bd463; box-shadow:0 0 0 0 rgba(43,212,99,.55); animation:livePulse 1.2s infinite; flex-shrink:0; }
+  @keyframes livePulse { 70% { box-shadow:0 0 0 10px rgba(43,212,99,0); } 100% { box-shadow:0 0 0 0 rgba(43,212,99,0); } }
+  .queue-live-main { font-size:13px; font-weight:950; line-height:1.45; }
+  .queue-live-sub { display:block; font-size:11px; color:rgba(255,255,255,.72); font-weight:700; margin-top:2px; }
+  .queue-active-meter { height:7px; border-radius:999px; background:#F1E3B6; overflow:hidden; margin-top:10px; }
+  .queue-active-meter span { display:block; width:42%; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--yd),var(--y)); animation:meterSlide 1.4s ease-in-out infinite alternate; }
+  @keyframes meterSlide { from { transform:translateX(-18%); } to { transform:translateX(155%); } }
+  .queue-btn.start.is-active { background:#151515; color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.18); }
   .queue-section { margin-top:18px; }
   .queue-section-title { font-size:11px; font-weight:900; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
   .queue-section-title::after { content:""; flex:1; height:1px; background:var(--line); }
@@ -513,7 +526,7 @@ function weeklyRates(clientTasks) {
 let S = {
   tab:"today", catFilter:"all", calSel:today(),
   openGoal:null, adding:false, addingGoal:false, addingRepeat:false,
-  addingClient:false, selClientId:null, activeStartedId:null, showDone:true,
+  addingClient:false, selClientId:null, activeStartedId:null, activeStartedAt:null, showDone:true,
   showUserDone:false,
   draft:{title:"",gid:"",cat:"business",date:today(),start_time:"",time:""},
   goalDraft:{title:"",cat:"business",deadline:"",progress:0},
@@ -825,14 +838,19 @@ function renderQueueNow(t){
     </div>`;
   }
   const raw=String(t.id);
-  const started=String(S.activeStartedId)===raw || isStarted(t);
-  return `<div class="queue-now-card">
-    <div class="queue-now-label">${started?"進行中":"NOW"}  今やる</div>
+  const activeByClick=String(S.activeStartedId)===raw;
+  const started=activeByClick || isStarted(t);
+  const startedAt=activeByClick&&S.activeStartedAt ? S.activeStartedAt : (t.start_time || nowHHMM());
+  return `<div class="queue-now-card${started&&!t.done?" active":""}">
+    <div class="queue-now-label${started&&!t.done?" active":""}">${started?"● 進行中":"NOW"}  ${started?"作業中":"今やる"}</div>
     <div class="queue-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
     <div class="queue-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
-    ${started&&!t.done?`<div class="queue-started">着手中です。ここまで来たら、あとは少し進めるだけ。</div>`:""}
+    ${started&&!t.done?`<div class="queue-started active">
+      <span class="queue-live-dot"></span>
+      <div class="queue-live-main">いまこのタスクをやっています<span class="queue-live-sub">開始 ${esc(startedAt)} ・ 終わったら「完了」を押してください</span></div>
+    </div><div class="queue-active-meter"><span></span></div>`:""}
     <div class="queue-actions">
-      <button class="queue-btn start" data-start-task="${raw}">${started?"着手中":"▶ 着手"}</button>
+      <button class="queue-btn start${started&&!t.done?" is-active":""}" data-start-task="${raw}">${started?"進行中":"▶ 着手する"}</button>
       <button class="queue-btn done" data-chk="${raw}">✅ 完了</button>
       <button class="queue-btn sub" data-edit="${t.isRepeat?"":t.id}" ${t.isRepeat?"disabled style='opacity:.35'":""}>編集</button>
       ${safeHref(t.link_url)?`<a class="queue-btn sub" href="${esc(safeHref(t.link_url))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none;text-align:center">リンクを開く</a>`:`<button class="queue-btn sub" data-queue-reschedule="${raw}">↪ リスケ</button>`}
@@ -1368,7 +1386,14 @@ function bind(){
     e.stopPropagation();
     const raw=el.dataset.chk;
     if(String(raw).startsWith("r"))toggleRepeatDone(+raw.slice(1),today());
-    else{const t=S.tasks.find(t=>t.id===+raw);if(t)toggleTask(t.id,!t.done);}
+    else{
+      const t=S.tasks.find(t=>t.id===+raw);
+      if(t){
+        const nextDone=!t.done;
+        toggleTask(t.id,nextDone);
+        if(nextDone && String(S.activeStartedId)===String(raw)){S.activeStartedId=null;S.activeStartedAt=null;}
+      }
+    }
   }));
   document.querySelectorAll("[data-goal]").forEach(el=>el.addEventListener("click",()=>{const id=+el.dataset.goal;S.openGoal=S.openGoal===id?null:id;render();}));
   document.querySelectorAll("[data-goal-del]").forEach(el=>el.addEventListener("click",e=>{e.stopPropagation();if(confirm("この目標を削除しますか？"))deleteGoal(+el.dataset.goalDel);}));
@@ -1386,6 +1411,7 @@ function bind(){
   document.querySelectorAll("[data-start-task]").forEach(el=>el.addEventListener("click",e=>{
     e.stopPropagation();
     S.activeStartedId=el.dataset.startTask;
+    S.activeStartedAt=nowHHMM();
     render();
   }));
   document.querySelectorAll("[data-queue-move]").forEach(el=>el.addEventListener("click",e=>{
