@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hitomiru - Coach Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --yellow: #FFC107; --yellow-deep: #FFB300; --yellow-pale: #FFF8E1;
+  --yellow-glow: rgba(255,193,7,0.15); --dark: #1C1C1E; --dark2: #2C2C2E;
+  --dark3: #3A3A3C; --gray: #8E8E93; --gray-light: #48484A;
+  --white: #FFFFFF; --success: #30D158; --danger: #FF453A;
+  --info: #0A84FF; --orange: #FF9F0A;
+  --font: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; min-height: 100vh;
+  background: var(--dark); color: var(--white);
+  font-family: var(--font); -webkit-font-smoothing: antialiased;
+}
+
+/* ===== Header ===== */
+.header {
+  background: var(--dark2); border-bottom: 1px solid var(--dark3);
+  padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.header-logo {
+  font-size: 24px; font-weight: 800; letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--yellow), #FFD54F);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.header-sub { font-size: 12px; color: var(--gray); letter-spacing: 0.08em; }
+.header-status { display: flex; align-items: center; gap: 8px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: blink 2s ease infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.status-text { font-size: 12px; color: var(--success); font-weight: 600; }
+
+/* ===== Tabs ===== */
+.tabs {
+  display: flex; background: var(--dark2);
+  border-bottom: 1px solid var(--dark3);
+  position: sticky; top: 60px; z-index: 40;
+}
+.tab {
+  flex: 1; padding: 14px; text-align: center;
+  font-size: 13px; font-weight: 600; color: var(--gray);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--white); }
+.tab.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+.tab .badge {
+  display: inline-block; background: var(--danger);
+  color: var(--white); font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 10px; margin-left: 6px;
+  animation: popBadge 0.3s ease;
+}
+@keyframes popBadge { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+/* ===== Panels ===== */
+.panel { display: none; padding: 20px; max-width: 800px; margin: 0 auto; }
+.panel.active { display: block; }
+
+/* ===== Notification Card ===== */
+.notif-card {
+  background: var(--dark2); border: 1px solid var(--dark3);
+  border-radius: 16px; padding: 20px; margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.notif-card.new { border-color: var(--yellow); }
+.notif-card.replied {
+  border-color: rgba(48,209,88,0.45);
+  background: linear-gradient(180deg, rgba(48,209,88,0.06), var(--dark2) 42%);
+}
+.notif-card .notif-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.notif-name { font-size: 16px; font-weight: 700; }
+.notif-time { font-size: 12px; color: var(--gray); }
+.notif-type {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 8px; margin-bottom: 10px;
+}
+.notif-type.started { background: rgba(10,132,255,0.15); color: var(--info); }
+.notif-type.completed { background: rgba(48,209,88,0.15); color: var(--success); }
+.notif-type.sos { background: rgba(255,69,58,0.15); color: var(--danger); }
+.notif-msg { font-size: 14px; color: #ccc; margin-bottom: 14px; line-height: 1.5; }
+.notif-photo { max-width: 200px; border-radius: 12px; margin-bottom: 14px; }
+.notif-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.reply-btn {
+  padding: 10px 16px; border-radius: 12px;
+  font-family: var(--font); font-size: 13px; font-weight: 600;
+  border: none; cursor: pointer; transition: transform 0.1s, opacity 0.1s;
+}
+.reply-btn:active { transform: scale(0.96); opacity: 0.8; }
+.reply-btn.primary { background: var(--yellow); color: var(--dark); }
+.reply-btn.secondary { background: var(--dark3); color: var(--white); }
+.reply-btn.danger { background: rgba(255,69,58,0.2); color: var(--danger); }
+
+.notif-new-badge {
+  display: inline-block; background: var(--yellow);
+  color: var(--dark); font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 8px; margin-left: 8px;
+}
+.notif-replied-badge {
+  display: inline-block; background: rgba(48,209,88,0.18);
+  color: var(--success); font-size: 10px; font-weight: 800;
+  padding: 2px 8px; border-radius: 8px; margin-left: 8px;
+}
+.notif-replied-note {
+  margin: -4px 0 14px; padding: 10px 12px;
+  border-radius: 12px; background: rgba(48,209,88,0.08);
+  color: rgba(235,235,245,0.78); font-size: 12px; line-height: 1.55;
+  border: 1px solid rgba(48,209,88,0.16);
+}
+
+/* ===== Reply Modal ===== */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--dark2); border-radius: 20px;
+  width: 100%; max-width: 480px; padding: 28px;
+  border: 1px solid var(--dark3);
+}
+.modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.modal-sub { font-size: 13px; color: var(--gray); margin-bottom: 20px; }
+.modal textarea {
+  width: 100%; min-height: 120px; padding: 14px;
+  background: var(--dark); border: 1px solid var(--dark3);
+  border-radius: 12px; color: var(--white); font-family: var(--font);
+  font-size: 14px; resize: vertical; outline: none;
+}
+.modal textarea:focus { border-color: var(--yellow); }
+.modal-templates { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+.tpl-btn {
+  padding: 10px 14px; background: var(--dark); border: 1px solid var(--dark3);
+  border-radius: 10px; color: var(--white); font-family: var(--font);
+  font-size: 13px; text-align: left; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.tpl-btn:hover { border-color: var(--yellow); }
+.modal-actions { display: flex; gap: 10px; margin-top: 16px; }
+.modal-btn {
+  flex: 1; padding: 14px; border-radius: 12px; border: none;
+  font-family: var(--font); font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.modal-btn.send { background: var(--yellow); color: var(--dark); }
+.modal-btn.cancel { background: var(--dark3); color: var(--white); }
+
+/* ===== Dashboard Card ===== */
+.dash-card {
+  background: var(--dark2); border: 1px solid var(--dark3);
+  border-radius: 16px; padding: 20px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 16px;
+}
+.dash-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; flex-shrink: 0;
+}
+.dash-avatar.idle { background: var(--dark3); color: var(--gray); }
+.dash-avatar.active { background: rgba(10,132,255,0.2); color: var(--info); }
+.dash-avatar.done { background: rgba(48,209,88,0.15); color: var(--success); }
+.dash-avatar.late { background: rgba(255,69,58,0.15); color: var(--danger); }
+.dash-avatar.sos { background: rgba(255,159,10,0.2); color: var(--orange); }
+.dash-info { flex: 1; min-width: 0; }
+.dash-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.dash-status { font-size: 12px; color: var(--gray); }
+.dash-status-badge {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 8px;
+}
+.dash-status-badge.active { background: rgba(10,132,255,0.15); color: var(--info); }
+.dash-status-badge.done { background: rgba(48,209,88,0.15); color: var(--success); }
+.dash-status-badge.idle { background: var(--dark3); color: var(--gray); }
+.dash-status-badge.late { background: rgba(255,69,58,0.15); color: var(--danger); }
+.dash-right { text-align: right; flex-shrink: 0; }
+.dash-time { font-size: 20px; font-weight: 700; color: var(--yellow); }
+.dash-time-label { font-size: 11px; color: var(--gray); }
+
+/* ===== Client Management ===== */
+.client-card {
+  background: var(--dark2); border: 1px solid var(--dark3);
+  border-radius: 16px; padding: 20px; margin-bottom: 12px;
+}
+.client-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.client-name { font-size: 16px; font-weight: 700; }
+.client-id { font-size: 11px; color: var(--gray); }
+.client-stats { display: flex; gap: 16px; }
+.client-stat { text-align: center; }
+.client-stat-val { font-size: 18px; font-weight: 700; color: var(--yellow); }
+.client-stat-label { font-size: 10px; color: var(--gray); letter-spacing: 0.08em; }
+
+/* ===== Schedule ===== */
+.schedule-card {
+  background: var(--dark2); border: 1px solid var(--dark3);
+  border-radius: 18px; padding: 22px; margin-bottom: 16px;
+}
+.schedule-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+.schedule-note { color: var(--gray); font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+.schedule-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.schedule-field label {
+  display: block; color: var(--gray); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; margin-bottom: 8px;
+}
+.schedule-field input,
+.schedule-field select {
+  width: 100%; padding: 13px 12px; border-radius: 12px;
+  border: 1px solid var(--dark3); background: var(--dark);
+  color: var(--white); font-family: var(--font); font-size: 14px;
+}
+.schedule-row {
+  display: grid; grid-template-columns: 46px 1fr 1fr; gap: 10px;
+  align-items: center; margin-bottom: 10px;
+}
+.schedule-row-num {
+  color: var(--yellow); font-weight: 800; font-size: 13px;
+}
+.schedule-save {
+  width: 100%; margin-top: 14px; padding: 15px; border: none;
+  border-radius: 14px; background: var(--yellow); color: var(--dark);
+  font-family: var(--font); font-size: 15px; font-weight: 800; cursor: pointer;
+}
+.schedule-preview {
+  margin-top: 16px; padding: 14px; border-radius: 14px;
+  background: rgba(255,193,7,0.08); color: rgba(235,235,245,0.86);
+  font-size: 13px; line-height: 1.8; border: 1px solid rgba(255,193,7,0.14);
+}
+
+/* ===== Empty State ===== */
+.empty { text-align: center; padding: 60px 20px; color: var(--gray); }
+.empty-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-text { font-size: 14px; line-height: 1.6; }
+
+/* ===== Toast ===== */
+.toast-area { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200; }
+.toast {
+  background: var(--success); color: var(--white);
+  padding: 14px 24px; border-radius: 14px;
+  font-size: 14px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  display: none; white-space: nowrap;
+}
+.toast.show { display: block; animation: slideUp 0.3s ease; }
+@keyframes slideUp { 0% { transform: translateY(20px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-logo">hitomiru</div>
+    <div class="header-sub">COACH DASHBOARD</div>
+  </div>
+  <div class="header-status">
+    <div class="status-dot"></div>
+    <div class="status-text">LIVE</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="inbox">🔔 通知<span class="badge" id="inbox-badge" style="display:none">0</span></div>
+  <div class="tab" data-tab="dashboard">◉ ダッシュボード</div>
+  <div class="tab" data-tab="schedule">📅 予定</div>
+  <div class="tab" data-tab="clients">👥 クライアント</div>
+</div>
+
+<div class="panel active" id="panel-inbox">
+  <div class="empty" id="inbox-empty">
+    <div class="empty-icon">🔔</div>
+    <div class="empty-text">新しい通知はありません</div>
+  </div>
+  <div id="inbox-list"></div>
+</div>
+
+<div class="panel" id="panel-dashboard">
+  <div id="dash-list"></div>
+</div>
+
+<div class="panel" id="panel-schedule">
+  <div class="schedule-card">
+    <div class="schedule-title">週次予定を登録</div>
+    <div class="schedule-note">
+      LINEで決めた「火曜21:00・土曜10:00」などの予定をここに登録します。保存すると、レポートの週目標とチェックイン対象に反映されます。
+    </div>
+    <div class="schedule-grid">
+      <div class="schedule-field">
+        <label>クライアント</label>
+        <select id="schedule-client"></select>
+      </div>
+      <div class="schedule-field">
+        <label>週の月曜日</label>
+        <input type="date" id="schedule-week">
+      </div>
+      <div class="schedule-field">
+        <label>目標回数</label>
+        <input type="number" id="schedule-target" min="1" max="7" value="2">
+      </div>
+    </div>
+    <div id="schedule-rows"></div>
+    <button class="schedule-save" id="schedule-save">この予定で保存する</button>
+    <div class="schedule-preview" id="schedule-preview">予定を入力すると、ここにLINE返信用の文章が出ます。</div>
+  </div>
+</div>
+
+<div class="panel" id="panel-clients">
+  <div id="client-list"></div>
+</div>
+
+<!-- Reply Modal -->
+<div class="modal-overlay" id="reply-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">返信</div>
+    <div class="modal-sub" id="modal-sub">テンプレートを選ぶか、自由に入力してください</div>
+    <div class="modal-templates" id="modal-templates"></div>
+    <textarea id="modal-text" placeholder="メッセージを入力..."></textarea>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="modal-cancel">キャンセル</button>
+      <button class="modal-btn send" id="modal-send">送信</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-area"><div class="toast" id="toast"></div></div>
+
+<script>
+const SUPABASE_URL = 'https://qqgawirefsxcgrsdskpq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZ2F3aXJlZnN4Y2dyc2Rza3BxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MTMxNTksImV4cCI6MjA5MDM4OTE1OX0.XkbN4z-0gDfkuPwiydw7crgnN2XpUSWtIGC6xD9xc5U';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+
+// ===== ジム版テンプレート =====
+const TEMPLATES = {
+  started: [
+    { label: '🔥 到着を褒める', text: 'チェックイン確認しました！ジムまで来られた時点で、もうかなり大きいです🔥 無理せず始めていきましょう。' },
+    { label: '💪 一歩を認める', text: '来られましたね！この一歩、ちゃんと積み上がっています💪 今日は軽めでもOKです。まずは動けた自分を褒めてください。' },
+    { label: '✨ 優しく応援', text: 'チェックインできましたね✨ 今日は完璧にやるより、来たことを勝ちにしましょう。いってらっしゃい！' },
+    { label: '📷 写真確認', text: '写真確認しました📷 ちゃんと来られています。ここまで来たら、あとは少し体を動かすだけです。応援してます！' },
+    { label: '🌙 夜向け', text: 'この時間にジムまで来られたの、かなり偉いです🌙 疲れていると思うので、無理せずできる範囲でいきましょう。' },
+    { label: '☀️ 朝向け', text: '朝からチェックインできたの素晴らしいです☀️ 今日の流れ、かなり良いスタートですね。軽く体を起こしていきましょう。' },
+    { label: '😌 低負荷OK', text: '来られましたね😌 今日は5分でも、ストレッチだけでもOKです。大事なのは「行けた」を作ることです。' },
+    { label: '🏁 行けた事実', text: 'チェックイン確認しました。今日は「ジムに行けた日」です🏁 この事実をちゃんと残していきましょう。' },
+    { label: '🔥 サボり回避', text: '今日も流されずに来られましたね🔥 ここで来れたのはかなり強いです。自分のペースでいきましょう。' },
+    { label: '💬 会話促し', text: 'ジム到着確認しました！今日は何をやる予定ですか？決まってなければ、まず10分だけ動くでも大丈夫です💪' },
+    { label: '📊 記録に触れる', text: 'チェックイン確認しました📊 こうやって来た日を増やしていくのが一番強いです。この調子でいきましょう。' },
+    { label: '🧠 ADHD寄り添い', text: '行くまでが一番しんどいんですよね。そこを越えられたの、本当に大きいです🧠 今日はゆるく始めましょう。' },
+  ],
+  completed: [
+    { label: '🎉 完了を褒める', text: 'チェックアウト確認しました！お疲れ様でした🎉 今日もちゃんと終われましたね。これはかなり良い積み重ねです。' },
+    { label: '💪 頑張りを認める', text: 'お疲れ様でした💪 ジムに行って、終わりまで記録できたの素晴らしいです。今日は自分を褒めてください。' },
+    { label: '🌙 夜の労い', text: '遅い時間までお疲れ様でした🌙 帰ったらしっかり休んでください。今日の一回、ちゃんと意味あります。' },
+    { label: '☕ 軽く労う', text: 'お疲れ様です☕ 今日も一つクリアですね。完璧じゃなくていいので、このペースを一緒に作っていきましょう。' },
+    { label: '📈 積み重ね', text: '完了確認しました📈 こういう一回一回が、ジムを生活に戻していく土台になります。ナイスです。' },
+    { label: '🔥 強めに褒める', text: '今日、ちゃんと勝ちましたね🔥 行って終われた。これだけで十分すごいです。お疲れ様でした！' },
+    { label: '😌 休息促し', text: 'セッション完了ですね😌 このあとは罪悪感なしで休んでOKです。今日の分はしっかり積み上がっています。' },
+    { label: '🏁 事実を残す', text: 'チェックアウト確認しました🏁 今日も「行けた日」として残りました。この記録、後からかなり効いてきます。' },
+    { label: '💬 次につなげる', text: 'お疲れ様でした！今日はどんな感じでしたか？きつかった・普通・意外といけた、どれでも大丈夫です💬' },
+    { label: '🧠 自己肯定感', text: '終われましたね。行けない自分じゃなくて、行けた自分の証拠がまた一つ増えました🧠 お疲れ様です。' },
+    { label: '✨ シンプル労い', text: 'お疲れ様でした✨ 今日もちゃんと動けましたね。帰ったらゆっくりしてください。' },
+    { label: '📊 記録系', text: 'チェックアウト確認しました📊 今日の記録も残りました。この調子で、無理なく続く形を作っていきましょう。' },
+  ],
+  remind: [
+    { label: '⏰ 優しいリマインド', text: '今日のジム予定、そろそろです⏰ 今の状況どうですか？行けそうなら、そのまま流れでいきましょう。' },
+    { label: '🏃 背中を押す', text: 'そろそろジムの時間ですね💪 行くまでが一番キツいので、まずは着替えるところからで大丈夫です。' },
+    { label: '💬 状況確認', text: '今の状況だけ教えてください。「行ける」「遅れる」「今日は厳しい」どれでも大丈夫です。責めません😌' },
+    { label: '🔥 軽く強制力', text: '今日はここで流さない日にしましょう🔥 予定通りが難しければ、時間をずらしてでもOKです。' },
+    { label: '🌙 夜向け', text: '夜なので無理は禁物ですが、行けそうなら短時間だけでも十分です🌙 今日はどうしましょう？' },
+  ],
+  sos: [
+    { label: '🤝 寄り添う', text: '連絡ありがとうございます。無理しなくて大丈夫ですよ😌 今日の状況を教えてもらえますか？一緒に考えましょう。' },
+    { label: '📅 リスケ提案', text: '了解です！今日は休みにしましょう。代わりに別の日に振り替えますか？ A. 明日 B. 週末 C. 今週はお休み どれがいいですか？☺️' },
+    { label: '💦 仕事で無理', text: '仕事が押しているなら、今日は無理に詰め込まなくて大丈夫です💦 振替で立て直しましょう。いつなら行けそうですか？' },
+    { label: '😴 疲労で無理', text: '疲れが強い日は、休む判断も大事です😌 ただ、罪悪感で終わらせずに次の予定だけ一緒に決めましょう。' },
+    { label: '🧠 寝坊・先延ばし', text: '大丈夫です。寝坊や先延ばしはここで終わりじゃないです🧠 今から行くか、振替にするか、一緒に決めましょう。' },
+  ]
+};
+
+let clients = {};
+let replyTarget = null;
+
+function toDateStr(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function weekMondayDate(base = new Date()) {
+  const d = new Date(base);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0);
+  return d;
+}
+function isSuccessStatus(status) {
+  return status === 'in_progress' || status === 'completed';
+}
+function isPlannedStatus(status) {
+  return ['scheduled','in_progress','completed','missed','rescheduled'].includes(status);
+}
+function weekMondayOf(dateStr) {
+  return weekMondayDate(new Date(dateStr + 'T00:00:00'));
+}
+function calcWeeklyStreak(goals, logs) {
+  const successByWeek = {};
+  const plannedByWeek = {};
+  (logs || []).forEach(log => {
+    const week = toDateStr(weekMondayOf(log.date));
+    plannedByWeek[week] = plannedByWeek[week] || 0;
+    successByWeek[week] = successByWeek[week] || 0;
+    if (isPlannedStatus(log.status)) plannedByWeek[week]++;
+    if (isSuccessStatus(log.status)) successByWeek[week]++;
+  });
+  const goalMap = {};
+  (goals || []).forEach(goal => {
+    goalMap[goal.week_start_date] = Number(goal.target_count || 0);
+  });
+  let streak = 0;
+  let cursor = weekMondayDate();
+  for (let i = 0; i < 52; i++) {
+    const week = toDateStr(cursor);
+    const target = goalMap[week] || plannedByWeek[week] || 0;
+    const done = successByWeek[week] || 0;
+    if (target <= 0) break;
+    if (done >= target) streak++;
+    else break;
+    cursor = addDays(cursor, -7);
+  }
+  return streak;
+}
+
+// ===== Reply Status =====
+const REPLY_STORAGE_KEY = 'hitomiru_gym_replied_events_v1';
+function getReplyMap() {
+  try { return JSON.parse(localStorage.getItem(REPLY_STORAGE_KEY) || '{}'); }
+  catch (_) { return {}; }
+}
+function saveReplyMap(map) {
+  localStorage.setItem(REPLY_STORAGE_KEY, JSON.stringify(map));
+}
+function getReplyInfo(eventId) {
+  return getReplyMap()[eventId] || null;
+}
+function markEventReplied(eventId, text) {
+  if (!eventId) return;
+  const map = getReplyMap();
+  map[eventId] = {
+    replied_at: new Date().toISOString(),
+    text: text.slice(0, 80)
+  };
+  saveReplyMap(map);
+}
+function replyTimeLabel(info) {
+  if (!info?.replied_at) return '';
+  return new Date(info.replied_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+}
+function pickRandomTemplate(templates) {
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
+// ===== Tab Switching =====
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ===== Load Data =====
+async function loadAll() {
+  // Load clients
+  const { data: cl } = await sb.from('clients').select('*');
+  if (cl) cl.forEach(c => { clients[c.id] = c; });
+
+  await loadInbox();
+  await loadDashboard();
+  await loadClients();
+  setupSchedulePanel();
+  setupRealtime();
+}
+
+async function loadInbox() {
+  const today = toDateStr(new Date());
+  const { data: events } = await sb.from('events').select('*')
+    .gte('date', today)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const list = $('inbox-list');
+  list.innerHTML = '';
+
+  if (!events || events.length === 0) {
+    $('inbox-empty').style.display = 'block';
+    $('inbox-badge').style.display = 'none';
+    return;
+  }
+
+  $('inbox-empty').style.display = 'none';
+  const newCount = events.filter(e => e.is_new).length;
+  if (newCount > 0) {
+    $('inbox-badge').style.display = 'inline';
+    $('inbox-badge').textContent = newCount;
+  } else {
+    $('inbox-badge').style.display = 'none';
+  }
+
+  events.forEach(ev => {
+    const client = clients[ev.client_id] || { name: '不明' };
+    const time = new Date(ev.created_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const isNew = ev.is_new;
+    const replyInfo = getReplyInfo(ev.id);
+    const isReplied = !!replyInfo;
+
+    let typeClass = 'started';
+    let typeLabel = '📍 ジム到着';
+    let tplKey = 'started';
+    if (ev.type === 'user_completed') { typeClass = 'completed'; typeLabel = '🏁 セッション完了'; tplKey = 'completed'; }
+    if (ev.type === 'user_sos') { typeClass = 'sos'; typeLabel = '🆘 SOS'; tplKey = 'sos'; }
+
+    // Extract photo URL from message
+    let photoUrl = null;
+    if (ev.message && ev.message.includes('http')) {
+      const lines = ev.message.split('\n');
+      const urlLine = lines.find(l => l.startsWith('http'));
+      if (urlLine) photoUrl = urlLine.trim();
+    }
+
+    const card = document.createElement('div');
+    card.className = 'notif-card' + (isNew ? ' new' : '') + (isReplied ? ' replied' : '');
+    card.innerHTML = `
+      <div class="notif-top">
+        <div>
+          <span class="notif-name">${client.name}</span>
+          ${isNew ? '<span class="notif-new-badge">NEW</span>' : ''}
+          ${isReplied ? '<span class="notif-replied-badge">返信済み</span>' : ''}
+        </div>
+        <span class="notif-time">${time}</span>
+      </div>
+      <div class="notif-type ${typeClass}">${typeLabel}</div>
+      ${photoUrl ? `<img class="notif-photo" src="${photoUrl}" alt="到着写真" />` : ''}
+      ${isReplied ? `<div class="notif-replied-note">返信済み ${replyTimeLabel(replyInfo)} / ${replyInfo.text || '送信済み'}</div>` : ''}
+      <div class="notif-actions">
+        <button class="reply-btn ${isReplied ? 'secondary' : 'primary'}" data-client-id="${ev.client_id}" data-event-id="${ev.id}" data-tpl="${tplKey}">${isReplied ? '💬 もう一度返信' : '💬 返信する'}</button>
+        ${isNew ? `<button class="reply-btn secondary" data-event-id="${ev.id}" data-action="mark-read">✓ 既読にする</button>` : ''}
+      </div>
+    `;
+    list.appendChild(card);
+
+    // Mark as read on view
+    if (isNew) {
+      sb.from('events').update({ is_new: false }).eq('id', ev.id).then(() => {});
+    }
+  });
+
+  // Attach reply handlers
+  list.querySelectorAll('[data-client-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const clientId = btn.dataset.clientId;
+      const tplKey = btn.dataset.tpl;
+      const eventId = btn.dataset.eventId;
+      openReplyModal(clientId, tplKey, eventId);
+    });
+  });
+}
+
+async function loadDashboard() {
+  const today = toDateStr(new Date());
+  const { data: logs } = await sb.from('daily_logs').select('*').eq('date', today);
+  const list = $('dash-list');
+  list.innerHTML = '';
+
+  const allClients = Object.values(clients).filter(c => !c.name.startsWith('dummy'));
+
+  allClients.forEach(client => {
+    const log = logs ? logs.find(l => l.client_id === client.id) : null;
+    let avatarClass = 'idle';
+    let statusText = '未着手';
+    let badgeClass = 'idle';
+    let timeDisplay = '--';
+    let timeLabel = '';
+
+    if (log) {
+      if (log.status === 'completed') {
+        avatarClass = 'done'; statusText = 'セッション完了'; badgeClass = 'done';
+        if (log.started_at && log.completed_at) {
+          const s = pmin(log.started_at), e = pmin(log.completed_at);
+          timeDisplay = Math.max(0, e - s) + '分';
+          timeLabel = `${log.started_at}→${log.completed_at}`;
+        }
+      } else if (log.status === 'in_progress') {
+        avatarClass = 'active'; statusText = 'セッション中'; badgeClass = 'active';
+        if (log.started_at) {
+          const now = new Date();
+          const elapsed = Math.max(0, (now.getHours() * 60 + now.getMinutes()) - pmin(log.started_at));
+          timeDisplay = elapsed + '分';
+          timeLabel = `${log.started_at}〜 経過`;
+        }
+      } else if (log.status === 'failed') {
+        avatarClass = 'late'; statusText = '未実施'; badgeClass = 'late';
+      }
+    }
+
+    const card = document.createElement('div');
+    card.className = 'dash-card';
+    card.innerHTML = `
+      <div class="dash-avatar ${avatarClass}">${client.name.charAt(0)}</div>
+      <div class="dash-info">
+        <div class="dash-name">${client.name}</div>
+        <span class="dash-status-badge ${badgeClass}">${statusText}</span>
+      </div>
+      <div class="dash-right">
+        <div class="dash-time">${timeDisplay}</div>
+        <div class="dash-time-label">${timeLabel}</div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  if (allClients.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">クライアントがいません</div></div>';
+  }
+}
+
+async function loadClients() {
+  const list = $('client-list');
+  list.innerHTML = '';
+  const today = new Date();
+  const thirtyAgo = new Date(today); thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+
+  const allClients = Object.values(clients).filter(c => !c.name.startsWith('dummy'));
+
+  for (const client of allClients) {
+    const { data: logs } = await sb.from('daily_logs').select('date,status')
+      .eq('client_id', client.id)
+      .gte('date', toDateStr(thirtyAgo))
+      .lte('date', toDateStr(today));
+    const { data: goals } = await sb.from('weekly_goals').select('*')
+      .eq('client_id', client.id)
+      .order('week_start_date', { ascending: false })
+      .limit(20);
+
+    const done = logs ? logs.filter(l => isSuccessStatus(l.status)).length : 0;
+    const streak = calcWeeklyStreak(goals || [], logs || []);
+
+    const card = document.createElement('div');
+    card.className = 'client-card';
+    card.innerHTML = `
+      <div class="client-top">
+        <span class="client-name">${client.name}</span>
+        <span class="client-id">ID: ${client.id}</span>
+      </div>
+      <div class="client-stats">
+        <div class="client-stat">
+          <div class="client-stat-val">${streak}</div>
+          <div class="client-stat-label">達成週</div>
+        </div>
+        <div class="client-stat">
+          <div class="client-stat-val">${done}</div>
+          <div class="client-stat-label">30日間</div>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}
+
+// ===== Schedule =====
+function setupSchedulePanel() {
+  const select = $('schedule-client');
+  if (!select) return;
+  const allClients = Object.values(clients).filter(c => !c.name.startsWith('dummy'));
+  select.innerHTML = allClients.map(c => `<option value="${c.id}">${c.name} / ID:${c.id}</option>`).join('');
+  $('schedule-week').value = toDateStr(weekMondayDate());
+  renderScheduleRows();
+  updateSchedulePreview();
+  loadScheduleForSelection();
+}
+
+function renderScheduleRows() {
+  const wrap = $('schedule-rows');
+  if (!wrap) return;
+  const count = Math.max(1, Math.min(7, Number($('schedule-target').value || 1)));
+  const week = $('schedule-week').value ? new Date($('schedule-week').value + 'T00:00:00') : weekMondayDate();
+  const defaults = [1, 3, 5, 0, 2, 4, 6];
+  wrap.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const date = toDateStr(addDays(week, defaults[i] || 0));
+    const row = document.createElement('div');
+    row.className = 'schedule-row';
+    row.innerHTML = `
+      <div class="schedule-row-num">${i + 1}回目</div>
+      <input type="date" class="schedule-date" value="${date}">
+      <input type="time" class="schedule-time" value="${i === 0 ? '21:00' : '10:00'}">
+    `;
+    wrap.appendChild(row);
+  }
+  wrap.querySelectorAll('input').forEach(input => input.addEventListener('input', updateSchedulePreview));
+}
+
+function getScheduleRows() {
+  return [...document.querySelectorAll('.schedule-row')].map(row => ({
+    date: row.querySelector('.schedule-date').value,
+    time: row.querySelector('.schedule-time').value
+  })).filter(r => r.date && r.time);
+}
+
+function formatScheduleForLine(rows) {
+  const DOW = ['日','月','火','水','木','金','土'];
+  return rows.map(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    return `・${DOW[d.getDay()]}曜 ${r.time}`;
+  }).join('\n');
+}
+
+function updateSchedulePreview(statusText = '') {
+  const rows = getScheduleRows();
+  const target = Number($('schedule-target')?.value || rows.length || 0);
+  const clientName = clients[$('schedule-client')?.value]?.name || 'この方';
+  const text = rows.length
+    ? `${statusText ? statusText + '\n\n' : ''}【保存対象】${clientName}さん\n\n了解です！\n\n今週はこの予定でいきましょう💪\n\n${formatScheduleForLine(rows)}\n\n今週の目標は${target}回です。\nこの${target}回行けたら、今週は達成としてレポートに反映されます。\n\n当日は予定時間の前に声をかけます。\nジムに着いたら、リッチメニューの「📷チェックイン」を押してください。\n\n来週からは、日曜日に次の週の予定を決めましょう📅`
+    : '予定を入力すると、ここにLINE返信用の文章が出ます。';
+  $('schedule-preview').textContent = text;
+}
+
+async function loadScheduleForSelection() {
+  const clientId = Number($('schedule-client')?.value);
+  const weekStart = $('schedule-week')?.value;
+  if (!clientId || !weekStart) return;
+  const weekEnd = toDateStr(addDays(new Date(weekStart + 'T00:00:00'), 6));
+  try {
+    const [{ data: goals }, { data: logs }] = await Promise.all([
+      sb.from('weekly_goals').select('*').eq('client_id', clientId).eq('week_start_date', weekStart).limit(1),
+      sb.from('daily_logs').select('date,planned_time,status').eq('client_id', clientId).gte('date', weekStart).lte('date', weekEnd).order('date', { ascending: true })
+    ]);
+    const scheduled = (logs || []).filter(l => ['scheduled','in_progress','completed','missed','rescheduled'].includes(l.status));
+    if (goals && goals[0]) {
+      $('schedule-target').value = goals[0].target_count;
+      renderScheduleRows();
+    }
+    if (scheduled.length) {
+      const count = Math.max(Number($('schedule-target').value || 1), scheduled.length);
+      $('schedule-target').value = count;
+      renderScheduleRows();
+      const rows = [...document.querySelectorAll('.schedule-row')];
+      scheduled.slice(0, rows.length).forEach((log, i) => {
+        rows[i].querySelector('.schedule-date').value = log.date;
+        rows[i].querySelector('.schedule-time').value = log.planned_time || '21:00';
+      });
+      updateSchedulePreview('✅ 保存済みの予定を読み込みました');
+    } else {
+      updateSchedulePreview('まだこの週の予定は保存されていません');
+    }
+  } catch (e) {
+    updateSchedulePreview('予定の読み込みに失敗しました: ' + e.message);
+  }
+}
+
+async function saveSchedule() {
+  const clientId = Number($('schedule-client').value);
+  const weekStart = $('schedule-week').value;
+  const target = Math.max(1, Math.min(7, Number($('schedule-target').value || 1)));
+  const rows = getScheduleRows();
+  if (!clientId || !weekStart || rows.length !== target) {
+    alert('クライアント・週・目標回数分の予定を入力してください');
+    return;
+  }
+
+  $('schedule-save').disabled = true;
+  $('schedule-save').textContent = '保存中...';
+  try {
+    const { data: existingGoals } = await sb.from('weekly_goals')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('week_start_date', weekStart)
+      .limit(1);
+    const goalPayload = { client_id: clientId, week_start_date: weekStart, target_count: target };
+    if (existingGoals && existingGoals[0]) {
+      await sb.from('weekly_goals').update(goalPayload).eq('id', existingGoals[0].id);
+    } else {
+      await sb.from('weekly_goals').insert(goalPayload);
+    }
+
+    for (const row of rows) {
+      const { data: existingLogs } = await sb.from('daily_logs')
+        .select('id,status')
+        .eq('client_id', clientId)
+        .eq('date', row.date)
+        .order('id', { ascending: false })
+        .limit(1);
+      const current = existingLogs && existingLogs[0];
+      const payload = {
+        client_id: clientId,
+        date: row.date,
+        planned_time: row.time,
+        task: 'ジムに行く',
+        status: current && isSuccessStatus(current.status) ? current.status : 'scheduled'
+      };
+      if (current) {
+        await sb.from('daily_logs').update(payload).eq('id', current.id);
+      } else {
+        await sb.from('daily_logs').insert(payload);
+      }
+    }
+
+    showToast('✅ 週次予定を保存しました');
+    updateSchedulePreview('✅ 保存しました。レポートに反映されています');
+    await loadDashboard();
+    await loadClients();
+  } catch (e) {
+    alert('保存に失敗しました: ' + e.message);
+  } finally {
+    $('schedule-save').disabled = false;
+    $('schedule-save').textContent = 'この予定で保存する';
+  }
+}
+
+['schedule-target','schedule-week','schedule-client'].forEach(id => {
+  document.addEventListener('input', e => {
+    if (e.target && e.target.id === id) {
+      if (id === 'schedule-target' || id === 'schedule-week') renderScheduleRows();
+      updateSchedulePreview();
+      if (id === 'schedule-client' || id === 'schedule-week') loadScheduleForSelection();
+    }
+  });
+  document.addEventListener('change', e => {
+    if (e.target && e.target.id === id) {
+      if (id === 'schedule-target' || id === 'schedule-week') renderScheduleRows();
+      updateSchedulePreview();
+      if (id === 'schedule-client' || id === 'schedule-week') loadScheduleForSelection();
+    }
+  });
+});
+document.addEventListener('click', e => {
+  if (e.target && e.target.id === 'schedule-save') saveSchedule();
+});
+
+// ===== Reply Modal =====
+function openReplyModal(clientId, tplKey, eventId) {
+  replyTarget = { clientId, eventId, tplKey, client: clients[clientId] };
+  $('modal-title').textContent = `${replyTarget.client.name}さんに返信`;
+  $('modal-sub').textContent = 'テンプレートを選ぶか、自由に入力してください';
+
+  const tplContainer = $('modal-templates');
+  tplContainer.innerHTML = '';
+  const templates = TEMPLATES[tplKey] || TEMPLATES.started;
+  const initial = pickRandomTemplate(templates);
+  $('modal-text').value = initial.text;
+
+  const randomBtn = document.createElement('button');
+  randomBtn.className = 'tpl-btn';
+  randomBtn.textContent = '🎲 おまかせで別の文章を入れる';
+  randomBtn.addEventListener('click', () => {
+    $('modal-text').value = pickRandomTemplate(templates).text;
+  });
+  tplContainer.appendChild(randomBtn);
+
+  templates.forEach(tpl => {
+    const btn = document.createElement('button');
+    btn.className = 'tpl-btn';
+    btn.textContent = tpl.label;
+    btn.addEventListener('click', () => { $('modal-text').value = tpl.text; });
+    tplContainer.appendChild(btn);
+  });
+
+  $('reply-modal').classList.add('show');
+}
+
+$('modal-cancel').addEventListener('click', () => {
+  $('reply-modal').classList.remove('show');
+  replyTarget = null;
+});
+
+$('modal-send').addEventListener('click', async () => {
+  const text = $('modal-text').value.trim();
+  if (!text || !replyTarget) return;
+
+  $('modal-send').disabled = true;
+  $('modal-send').textContent = '送信中...';
+
+  try {
+    const lineUserId = replyTarget.client.line_user_id || replyTarget.client.token;
+    await sb.functions.invoke('send-line-message', {
+      body: { lineUserId, message: text }
+    });
+    markEventReplied(replyTarget.eventId, text);
+    showToast('✅ メッセージを送信しました');
+    $('reply-modal').classList.remove('show');
+    replyTarget = null;
+    await loadInbox();
+  } catch (e) {
+    alert('送信失敗: ' + e.message);
+  } finally {
+    $('modal-send').disabled = false;
+    $('modal-send').textContent = '送信';
+  }
+});
+
+// ===== Realtime =====
+function setupRealtime() {
+  sb.channel('coach-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
+      loadInbox();
+      loadDashboard();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs' }, () => {
+      loadDashboard();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_goals' }, () => {
+      loadDashboard();
+      loadClients();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+      location.reload();
+    })
+    .subscribe();
+}
+
+// ===== Utils =====
+function pmin(t) { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+
+function showToast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ===== Init =====
+loadAll();
+</script>
+</body>
+</html>
