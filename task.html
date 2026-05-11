@@ -85,7 +85,9 @@
   .queue-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
   .queue-eyebrow { font-size:10px; font-weight:900; color:var(--yd); letter-spacing:.14em; text-transform:uppercase; }
   .queue-help { font-size:11px; color:var(--muted); line-height:1.6; margin-top:3px; }
-  .queue-now-card { background:#fff; border:1.5px solid var(--y); border-radius:22px; padding:18px; box-shadow:0 10px 30px rgba(255,189,0,.14); margin-bottom:14px; }
+  .queue-now-card { background:#fff; border:1.5px solid var(--y); border-radius:22px; padding:18px; box-shadow:0 10px 30px rgba(255,189,0,.14); margin-bottom:0; transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease; }
+  .queue-now-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:2px; }
+  .queue-now-top .queue-now-label { margin-bottom:0; }
   .queue-now-label { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:99px; background:var(--ink); color:#fff; font-size:10px; font-weight:900; letter-spacing:.08em; margin-bottom:12px; }
   .queue-title { font-size:22px; font-weight:900; letter-spacing:-.04em; line-height:1.35; color:var(--ink); }
   .queue-title.done-txt { text-decoration:line-through; color:var(--muted); }
@@ -124,9 +126,9 @@
   .queue-item { background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px; display:grid; grid-template-columns:30px 1fr auto auto; align-items:center; gap:10px; transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease; }
   .queue-item.now { border-color:var(--y); background:#FFFDF5; box-shadow:0 6px 18px rgba(255,189,0,.10); }
   .queue-item.done { opacity:.48; }
-  .queue-item.dragging { opacity:.72; transform:scale(.985); box-shadow:0 12px 30px rgba(20,20,20,.16); border-color:var(--y); background:#FFF9DF; }
-  .queue-item.drop-before { box-shadow:0 -4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
-  .queue-item.drop-after { box-shadow:0 4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
+  .queue-draggable.dragging { opacity:.72; transform:scale(.985); box-shadow:0 16px 36px rgba(20,20,20,.18); border-color:var(--y); background:#FFF9DF; }
+  .queue-draggable.drop-before { box-shadow:0 -4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
+  .queue-draggable.drop-after { box-shadow:0 4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
   .queue-item-index { width:28px; height:28px; border-radius:50%; background:var(--yl); color:var(--yd); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; }
   .queue-item.now .queue-item-index { background:var(--y); color:var(--ink); }
   .queue-item-body { min-width:0; }
@@ -136,6 +138,8 @@
   .queue-drag-handle { width:36px; height:36px; border-radius:12px; background:#F7F7F7; border:1px solid var(--line); color:var(--muted); font-size:20px; font-weight:900; display:flex; align-items:center; justify-content:center; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
   .queue-drag-handle:active { cursor:grabbing; background:var(--yl); color:var(--yd); border-color:var(--y); }
   .queue-drag-handle span { transform:translateY(-1px); pointer-events:none; }
+  .queue-now-drag { width:38px; height:34px; flex-shrink:0; background:#fff; }
+  .queue-sortable { margin-top:14px; }
   .queue-mini { background:#fff; border:1px solid var(--line); border-radius:16px; padding:13px 14px; display:flex; align-items:center; gap:12px; margin-bottom:8px; }
   .queue-mini-num { width:26px; height:26px; border-radius:50%; background:var(--yl); color:var(--yd); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; flex-shrink:0; }
   .queue-mini-main { flex:1; min-width:0; }
@@ -874,20 +878,27 @@ function reorderQueueTask(id,targetId,placeAfter){
 
 let queueDragState=null;
 function clearQueueDragClasses(){
-  document.querySelectorAll(".queue-item.dragging,.queue-item.drop-before,.queue-item.drop-after").forEach(el=>{
+  document.querySelectorAll(".queue-draggable.dragging,.queue-draggable.drop-before,.queue-draggable.drop-after").forEach(el=>{
     el.classList.remove("dragging","drop-before","drop-after");
   });
 }
+function renumberQueueItems(){
+  document.querySelectorAll(".queue-sortable .queue-item-index").forEach((el,i)=>{el.textContent=String(i+2);});
+}
+function saveQueueOrderFromDom(){
+  const ids=[...document.querySelectorAll(".queue-sortable [data-task-id]")].map(el=>String(el.dataset.taskId)).filter(Boolean);
+  if(ids.length)saveQueueOrder(ids);
+}
 function bindQueueDrag(){
-  const list=document.querySelector(".queue-list");
+  const list=document.querySelector(".queue-sortable");
   if(!list)return;
   document.querySelectorAll("[data-queue-drag]").forEach(handle=>{
     handle.addEventListener("pointerdown",e=>{
       e.preventDefault();
       e.stopPropagation();
-      const item=handle.closest(".queue-item");
+      const item=handle.closest(".queue-draggable");
       if(!item)return;
-      queueDragState={id:String(handle.dataset.queueDrag),overId:null,after:false};
+      queueDragState={id:String(handle.dataset.queueDrag),moved:false};
       clearQueueDragClasses();
       item.classList.add("dragging");
       try{handle.setPointerCapture(e.pointerId);}catch(_e){}
@@ -895,28 +906,29 @@ function bindQueueDrag(){
     handle.addEventListener("pointermove",e=>{
       if(!queueDragState || queueDragState.id!==String(handle.dataset.queueDrag))return;
       e.preventDefault();
-      const dragging=document.querySelector(".queue-item.dragging");
-      const over=document.elementFromPoint(e.clientX,e.clientY)?.closest(".queue-item");
-      clearQueueDragClasses();
-      if(dragging)dragging.classList.add("dragging");
-      if(!over || over===dragging || !list.contains(over))return;
+      const dragging=document.querySelector(".queue-draggable.dragging");
+      const over=document.elementFromPoint(e.clientX,e.clientY)?.closest(".queue-draggable");
+      if(!dragging || !over || over===dragging || !list.contains(over))return;
       const rect=over.getBoundingClientRect();
       const after=e.clientY>rect.top+rect.height/2;
-      over.classList.add(after?"drop-after":"drop-before");
-      queueDragState.overId=over.dataset.taskId;
-      queueDragState.after=after;
+      if(after)over.after(dragging); else over.before(dragging);
+      queueDragState.moved=true;
+      renumberQueueItems();
     });
     const finishDrag=e=>{
       if(!queueDragState || queueDragState.id!==String(handle.dataset.queueDrag))return;
       e.preventDefault();
       e.stopPropagation();
-      const {id,overId,after}=queueDragState;
+      const moved=queueDragState.moved;
       queueDragState=null;
       clearQueueDragClasses();
-      if(overId)reorderQueueTask(id,overId,after);
+      if(moved){
+        saveQueueOrderFromDom();
+        render();
+      }
     };
     handle.addEventListener("pointerup",finishDrag);
-    handle.addEventListener("pointercancel",()=>{queueDragState=null;clearQueueDragClasses();});
+    handle.addEventListener("pointercancel",()=>{queueDragState=null;clearQueueDragClasses();render();});
   });
 }
 
@@ -947,8 +959,11 @@ function renderQueueNow(t){
   const activeByClick=String(S.activeStartedId)===raw || activeBySaved;
   const started=activeByClick || isStarted(t);
   const startedAt=activeByClick&&S.activeStartedAt ? S.activeStartedAt : activeBySaved&&savedActive.startedAt ? savedActive.startedAt : (t.start_time || nowHHMM());
-  return `<div class="queue-now-card${started&&!t.done?" active":""}">
-    <div class="queue-now-label${started&&!t.done?" active":""}">${started?"● 進行中":"NOW"}  ${started?"作業中":"今やる"}</div>
+  return `<div class="queue-now-card queue-draggable${started&&!t.done?" active":""}" data-task-id="${raw}">
+    <div class="queue-now-top">
+      <div class="queue-now-label${started&&!t.done?" active":""}">${started?"● 進行中":"NOW"}  ${started?"作業中":"今やる"}</div>
+      <button class="queue-drag-handle queue-now-drag" data-queue-drag="${raw}" aria-label="このタスクを並び替え"><span>≡</span></button>
+    </div>
     ${goalContextHTML(t,true)}
     <div class="queue-title${t.done?" done-txt":""}">${esc(t.title)}${t.isRepeat?`<span class="rep-badge">${repeatLabel(t.repeatStr)}</span>`:""}</div>
     <div class="queue-meta">${taskMetaParts(t).join("  ·  ") || "時間指定なし"}${isOverdue(t)?`  <span style="color:var(--red);font-weight:800">時間切れ</span>`:""}</div>
@@ -969,7 +984,7 @@ function renderQueueItem(t,i,total){
   const raw=String(t.id);
   const isNow=i===0&&!t.done;
   const meta=taskMetaParts(t).join("  ·  ") || "時間指定なし";
-  return `<div class="queue-item${isNow?" now":""}${t.done?" done":""}" data-task-id="${raw}">
+  return `<div class="queue-item queue-draggable${isNow?" now":""}${t.done?" done":""}" data-task-id="${raw}">
     <div class="queue-item-index">${i+1}</div>
     <div class="queue-item-body">
       ${goalContextHTML(t,true)}
@@ -1040,11 +1055,7 @@ function userToday(filtered, allTasks=[]){
         <div class="queue-help">時間は目安でOK。右の≡をつまんで上下にスライドできます。まず一番上だけ進めます。</div>
       </div>
     </div>
-    ${renderQueueNow(nowTask)}
-    ${queueList.length?`<div class="queue-section">
-      <div class="queue-section-title">このあと</div>
-      <div class="queue-list">${queueList.map((t,i)=>renderQueueItem(t,i+1,undone.length)).join("")}</div>
-    </div>`:""}
+    ${nowTask?`<div class="queue-list queue-sortable">${renderQueueNow(nowTask)}${queueList.map((t,i)=>renderQueueItem(t,i+1,undone.length)).join("")}</div>`:renderQueueNow(null)}
     ${S.showUserDone&&done.length?`<div class="queue-section"><div class="queue-section-title">DONE</div>${done.map((t,i)=>renderQueueMini(t,i+1)).join("")}</div>`:""}
     ${toggleDoneBtn}
     ${pastDueSection}
