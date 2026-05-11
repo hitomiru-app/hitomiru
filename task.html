@@ -126,6 +126,8 @@
   .queue-item { background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px; display:grid; grid-template-columns:30px 1fr auto auto; align-items:center; gap:10px; transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease; }
   .queue-item.now { border-color:var(--y); background:#FFFDF5; box-shadow:0 6px 18px rgba(255,189,0,.10); }
   .queue-item.done { opacity:.48; }
+  .queue-draggable { cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+  .queue-draggable:active { cursor:grabbing; }
   .queue-draggable.dragging { opacity:.72; transform:scale(.985); box-shadow:0 16px 36px rgba(20,20,20,.18); border-color:var(--y); background:#FFF9DF; }
   .queue-draggable.drop-before { box-shadow:0 -4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
   .queue-draggable.drop-after { box-shadow:0 4px 0 var(--y), 0 10px 24px rgba(255,189,0,.18); }
@@ -892,46 +894,71 @@ function saveQueueOrderFromDom(){
 function bindQueueDrag(){
   const list=document.querySelector(".queue-sortable");
   if(!list)return;
-  document.querySelectorAll("[data-queue-drag]").forEach(handle=>{
-    handle.addEventListener("pointerdown",e=>{
-      e.preventDefault();
-      e.stopPropagation();
-      const item=handle.closest(".queue-draggable");
-      if(!item)return;
-      queueDragState={id:String(handle.dataset.queueDrag),moved:false};
-      clearQueueDragClasses();
-      item.classList.add("dragging");
-      try{handle.setPointerCapture(e.pointerId);}catch(_e){}
-    });
-    handle.addEventListener("pointermove",e=>{
-      if(!queueDragState || queueDragState.id!==String(handle.dataset.queueDrag))return;
-      e.preventDefault();
-      const dragging=document.querySelector(".queue-draggable.dragging");
-      const over=document.elementFromPoint(e.clientX,e.clientY)?.closest(".queue-draggable");
-      if(!dragging || !over || over===dragging || !list.contains(over))return;
-      const rect=over.getBoundingClientRect();
-      const after=e.clientY>rect.top+rect.height/2;
-      if(after)over.after(dragging); else over.before(dragging);
-      queueDragState.moved=true;
-      renumberQueueItems();
-    });
-    const finishDrag=e=>{
-      if(!queueDragState || queueDragState.id!==String(handle.dataset.queueDrag))return;
-      e.preventDefault();
-      e.stopPropagation();
-      const moved=queueDragState.moved;
-      queueDragState=null;
-      clearQueueDragClasses();
-      if(moved){
-        saveQueueOrderFromDom();
-        render();
-      }
+
+  const isInteractiveTarget=(target)=>{
+    return !!target.closest('[data-chk],[data-edit],[data-start-task],[data-queue-reschedule],a,input,select,textarea,.queue-btn');
+  };
+
+  const startDrag=(e,item)=>{
+    if(!item || !list.contains(item))return;
+    if(isInteractiveTarget(e.target) && !e.target.closest('[data-queue-drag]'))return;
+    e.preventDefault();
+    e.stopPropagation();
+    queueDragState={
+      id:String(item.dataset.taskId),
+      item,
+      pointerId:e.pointerId,
+      moved:false,
+      startY:e.clientY
     };
-    handle.addEventListener("pointerup",finishDrag);
-    handle.addEventListener("pointercancel",()=>{queueDragState=null;clearQueueDragClasses();render();});
+    clearQueueDragClasses();
+    item.classList.add("dragging");
+    try{item.setPointerCapture(e.pointerId);}catch(_e){}
+  };
+
+  const moveDrag=(e)=>{
+    if(!queueDragState)return;
+    const dragging=queueDragState.item;
+    if(!dragging || !list.contains(dragging))return;
+    e.preventDefault();
+    const y=e.clientY;
+    if(Math.abs(y-queueDragState.startY)>4)queueDragState.moved=true;
+
+    // Drag中のカード自身を一瞬だけ無視して、下にあるカードを拾う
+    const prevPointerEvents=dragging.style.pointerEvents;
+    dragging.style.pointerEvents='none';
+    const over=document.elementFromPoint(e.clientX,y)?.closest('.queue-draggable');
+    dragging.style.pointerEvents=prevPointerEvents;
+
+    if(!over || over===dragging || !list.contains(over))return;
+    const rect=over.getBoundingClientRect();
+    const after=y>rect.top+rect.height/2;
+    if(after)over.after(dragging); else over.before(dragging);
+    renumberQueueItems();
+  };
+
+  const endDrag=(e)=>{
+    if(!queueDragState)return;
+    e.preventDefault();
+    e.stopPropagation();
+    const moved=queueDragState.moved;
+    const item=queueDragState.item;
+    try{item?.releasePointerCapture?.(queueDragState.pointerId);}catch(_e){}
+    queueDragState=null;
+    clearQueueDragClasses();
+    if(moved){
+      saveQueueOrderFromDom();
+      render();
+    }
+  };
+
+  document.querySelectorAll('.queue-sortable .queue-draggable').forEach(item=>{
+    item.addEventListener('pointerdown',e=>startDrag(e,item));
+    item.addEventListener('pointermove',moveDrag);
+    item.addEventListener('pointerup',endDrag);
+    item.addEventListener('pointercancel',()=>{queueDragState=null;clearQueueDragClasses();render();});
   });
 }
-
 function taskMetaParts(t){
   const cat=getCat(t.cat);
   return [fmtTimeRange(t), cat?cat.label:"", t.isRepeat?repeatLabel(t.repeatStr):""].filter(Boolean);
