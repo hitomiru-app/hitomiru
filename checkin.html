@@ -303,8 +303,22 @@ window.addEventListener('load', async () => {
   }
 });
 
-$('start-btn').addEventListener('click', () => {
-  $('photo-input').click();
+$('start-btn').addEventListener('click', async () => {
+  try {
+    showL('カメラを起動中...');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+    $('video').srcObject = stream;
+    $('start-screen').classList.add('hidden');
+    $('camera-screen').classList.remove('hidden');
+    hideL();
+  } catch (err) {
+    hideL();
+    // LIFFや端末設定でWebカメラが使えない場合だけ、標準カメラにフォールバックします。
+    $('photo-input').click();
+  }
 });
 
 $('photo-input').addEventListener('change', async (event) => {
