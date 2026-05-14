@@ -104,35 +104,46 @@ html, body {
 .cam-wrap { flex: 1; position: relative; overflow: hidden; }
 #video { width: 100%; height: 100%; object-fit: cover; }
 .cam-bar {
-  position: absolute; top: 0; left: 0; right: 0;
-  padding: 14px 20px; padding-top: max(14px, env(safe-area-inset-top));
-  background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%);
-  display: flex; align-items: center; justify-content: space-between;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  min-height: 86px;
+  padding: max(22px, env(safe-area-inset-top)) 24px 26px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.42) 48%, transparent 100%);
+  display: flex; align-items: flex-start; justify-content: flex-start;
 }
-.cam-bar-logo { font-size: 16px; font-weight: 800; color: var(--yellow); }
+.cam-bar-logo {
+  color: var(--yellow);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-shadow: 0 8px 24px rgba(255,193,7,0.35);
+}
 .cam-hint {
-  position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-  background: var(--yellow); color: var(--dark);
-  padding: 8px 20px; border-radius: 24px;
-  font-size: 13px; font-weight: 600;
-  box-shadow: 0 4px 16px rgba(255,193,7,0.4);
+  position: absolute; bottom: 108px; left: 50%; z-index: 3;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 17px; font-weight: 900;
+  letter-spacing: 0.02em;
+  text-shadow: 0 3px 18px rgba(0,0,0,0.85);
+  white-space: nowrap;
 }
 .cam-controls {
-  padding: 24px; padding-bottom: max(24px, env(safe-area-inset-bottom));
-  background: rgba(0,0,0,0.9);
+  padding: 24px; padding-bottom: max(28px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(0,0,0,0.74), rgba(0,0,0,0.96));
   display: flex; align-items: center; justify-content: center;
 }
 .shutter {
-  width: 76px; height: 76px; border-radius: 50%;
-  background: var(--yellow); border: 5px solid rgba(255,193,7,0.3);
+  width: 78px; height: 78px; border-radius: 50%;
+  background: linear-gradient(135deg, #ffe082 0%, var(--yellow) 58%, #d9a700 100%);
+  border: 8px solid rgba(255,255,255,0.18);
   cursor: pointer; position: relative; padding: 0;
-  box-shadow: 0 0 30px rgba(255,193,7,0.4);
-  transition: transform 0.1s ease;
+  box-shadow: 0 0 0 12px rgba(255,193,7,0.12), 0 18px 42px rgba(255,193,7,0.36);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
-.shutter:active { transform: scale(0.9); }
+.shutter:active { transform: scale(0.92); box-shadow: 0 0 0 8px rgba(255,193,7,0.16), 0 10px 28px rgba(255,193,7,0.3); }
 .shutter::after {
-  content: ''; position: absolute; inset: 5px;
-  border-radius: 50%; border: 2px solid var(--dark);
+  content: ''; position: absolute; inset: 10px;
+  border-radius: 50%; border: 2px solid rgba(26,26,26,0.38);
 }
 
 #done-screen {
@@ -213,7 +224,7 @@ html, body {
 <div class="screen hidden" id="camera-screen">
   <div class="cam-wrap">
     <video id="video" autoplay playsinline muted></video>
-    <div class="cam-bar"><div class="cam-bar-logo">hitomiru</div></div>
+    <div class="cam-bar"><div class="cam-bar-logo">Hitomiru</div></div>
     <div class="cam-hint">ジム入口を撮影</div>
   </div>
   <div class="cam-controls">
@@ -229,7 +240,7 @@ html, body {
     <div class="done-title" id="done-name">チェックイン完了</div>
     <div class="done-time" id="done-time"></div>
     <div class="streak-card">
-      <div class="streak-label">STREAK</div>
+      <div class="streak-label">連続達成週</div>
       <div class="streak-num" id="streak-value">-</div>
       <div class="streak-sub" id="streak-week">-</div>
     </div>
@@ -275,7 +286,7 @@ window.addEventListener('load', async () => {
     }
 
     const status = c.status || 'monitor';
-    const today = new Date().toISOString().split('T')[0];
+    const today = toDateStr(new Date());
     const ended = c.plan_end_date && today > c.plan_end_date && status === 'monitor';
     if (['lead', 'expired', 'cancelled'].includes(status) || ended) {
       showUnavailable('モニター期間が終了しています', '継続する場合は、通常プランで引き続きご利用いただけます。\\n継続希望の方はLINEで「継続」と送ってください。');
@@ -326,22 +337,24 @@ $('shutter-btn').addEventListener('click', async () => {
 });
 
 async function send(blob) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = toDateStr(new Date());
   ctime = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
   const fn = `${cid}/${today}_${Date.now()}.jpg`;
   const { error: ue } = await sb.storage.from('checkins').upload(fn, blob, { contentType: blob.type || 'image/jpeg' });
   let url = null;
   if (!ue) { const { data } = sb.storage.from('checkins').getPublicUrl(fn); url = data.publicUrl; }
-  const { data: ex } = await sb.from('daily_logs').select('id').eq('client_id', cid).eq('date', today).maybeSingle();
+  const { data: existingRows } = await sb.from('daily_logs').select('id').eq('client_id', cid).eq('date', today).order('id', { ascending: false }).limit(1);
+  const ex = existingRows && existingRows[0];
   if (ex) {
-    const { error } = await sb.from('daily_logs').update({ status: 'in_progress', started_at: ctime, updated_at: new Date().toISOString() }).eq('id', ex.id);
+    const { error } = await sb.from('daily_logs').update({ status: 'in_progress', started_at: ctime }).eq('id', ex.id);
     if (error) throw error;
   } else {
     const { error } = await sb.from('daily_logs').insert({ client_id: cid, date: today, status: 'in_progress', started_at: ctime, task: 'ジムに行く' });
     if (error) throw error;
   }
   const msg = url ? `${cname}さんがジム到着 📷\n${url}` : `${cname}さんがジム到着`;
-  await sb.from('events').insert({ client_id: cid, date: today, type: 'user_started', message: msg, is_new: true });
+  const { error: eventError } = await sb.from('events').insert({ client_id: cid, date: today, type: 'user_started', message: msg, is_new: true });
+  if (eventError) throw eventError;
 
   // ★ LINE公式アカウントからプッシュメッセージ送信（Edge Function経由）
   try {
@@ -349,7 +362,7 @@ async function send(blob) {
     await sb.functions.invoke('send-line-message', {
       body: {
         lineUserId: lineUserId,
-        message: `✅ ${cname}さん、チェックイン完了\n\n開始時刻：${ctime}\n連続チェックイン：${stats.streak}回目🔥\n\n今日もジムに来れました。\nまずは「来た」だけで勝ちです。\n\nコーチが確認次第、メッセージをお送りします💪`
+        message: `✅ ${cname}さん、チェックイン完了\n\n開始時刻：${ctime}\n今週の達成：${stats.wd}/${stats.wt}回\n連続達成週：${stats.streak}週🔥\n\n今日もジムに来れました。\nまずは「来た」だけで勝ちです。\n\nコーチが確認次第、メッセージをお送りします💪`
       }
     });
   } catch (lineErr) {
@@ -363,31 +376,74 @@ async function doneUI() {
   $('done-time').textContent = ctime;
   try {
     const s = await calcStreak();
-    $('streak-value').textContent = s.streak + '回目';
+    $('streak-value').textContent = s.streak + '週';
     $('streak-week').textContent = `今週 ${s.wd}/${s.wt} 達成中`;
   } catch (e) {}
 }
 
-async function calcStreak() {
-  const today = new Date(), ts = today.toISOString().split('T')[0];
-  const ago = new Date(today); ago.setDate(ago.getDate() - 180);
-  const { data: logs } = await sb.from('daily_logs').select('date,status').eq('client_id', cid)
-    .gte('date', ago.toISOString().split('T')[0]).lte('date', ts).order('date', { ascending: false });
-  const success = ['in_progress', 'completed'];
-  const planned = ['scheduled', 'in_progress', 'completed', 'missed', 'rescheduled'];
-  const plannedLogs = (logs || []).filter(l => planned.includes(l.status));
-  let s = 0;
-  for (const log of plannedLogs) {
-    if (success.includes(log.status)) s++;
+function toDateStr(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function weekMondayOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0,0,0,0);
+  return d;
+}
+function isSuccessStatus(status) {
+  return status === 'in_progress' || status === 'completed';
+}
+function isPlannedStatus(status) {
+  return ['scheduled','in_progress','completed','missed','rescheduled'].includes(status);
+}
+function calcWeeklyStreak(goals, logs) {
+  const successByWeek = {};
+  const plannedByWeek = {};
+  (logs || []).forEach(log => {
+    const week = toDateStr(weekMondayOf(log.date));
+    plannedByWeek[week] = plannedByWeek[week] || 0;
+    successByWeek[week] = successByWeek[week] || 0;
+    if (isPlannedStatus(log.status)) plannedByWeek[week]++;
+    if (isSuccessStatus(log.status)) successByWeek[week]++;
+  });
+  const goalMap = {};
+  (goals || []).forEach(goal => {
+    goalMap[goal.week_start_date] = Number(goal.target_count || 0);
+  });
+  let streak = 0;
+  let cursor = weekMondayOf(toDateStr(new Date()));
+  for (let i = 0; i < 52; i++) {
+    const week = toDateStr(cursor);
+    const target = goalMap[week] || plannedByWeek[week] || 0;
+    const done = successByWeek[week] || 0;
+    if (target <= 0) break;
+    if (done >= target) streak++;
     else break;
+    cursor = addDays(cursor, -7);
   }
-  const dow = today.getDay(), dsm = dow === 0 ? 6 : dow - 1;
-  const mon = new Date(today); mon.setDate(mon.getDate() - dsm);
-  const ms = mon.toISOString().split('T')[0];
-  const weekPlanned = plannedLogs.filter(l => l.date >= ms && l.date <= ts);
-  const wd = weekPlanned.filter(l => success.includes(l.status)).length;
-  const wt = Math.max(weekPlanned.length, wd, 1);
-  return { streak: Math.max(s, 1), wd, wt };
+  return streak;
+}
+async function calcStreak() {
+  const today = new Date(), ts = toDateStr(today);
+  const ago = new Date(today); ago.setDate(ago.getDate() - 180);
+  const mon = weekMondayOf(ts);
+  const ms = toDateStr(mon);
+  const sun = toDateStr(addDays(mon, 6));
+  const { data: logs } = await sb.from('daily_logs').select('date,status').eq('client_id', cid)
+    .gte('date', toDateStr(ago)).lte('date', ts).order('date', { ascending: false });
+  const { data: goals } = await sb.from('weekly_goals').select('*').eq('client_id', cid).order('week_start_date', { ascending: false }).limit(100);
+  const { data: currentGoals } = await sb.from('weekly_goals').select('*').eq('client_id', cid).eq('week_start_date', ms).limit(1);
+  const currentGoal = currentGoals && currentGoals[0];
+  const weekLogs = (logs || []).filter(l => l.date >= ms && l.date <= sun && isPlannedStatus(l.status));
+  const wd = weekLogs.filter(l => isSuccessStatus(l.status)).length;
+  const wt = Math.max(Number(currentGoal?.target_count || 0), weekLogs.length, 1);
+  return { streak: calcWeeklyStreak(goals || [], logs || []), wd, wt };
 }
 
 function showUnavailable(title, body) {
