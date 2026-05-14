@@ -204,6 +204,113 @@ html, body {
   border-radius: 50%; border: 2px solid rgba(26,26,26,0.32);
 }
 
+#preview-screen {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,193,7,0.16), transparent 28%),
+    #050505;
+  color: #fff;
+}
+.preview-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: max(22px, env(safe-area-inset-top)) 20px max(22px, env(safe-area-inset-bottom));
+  gap: 18px;
+}
+.preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+.preview-logo {
+  color: var(--yellow);
+  font-size: 21px;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+}
+.preview-kicker {
+  color: rgba(255,255,255,0.62);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+}
+.preview-copy {
+  text-align: center;
+  margin: 2px auto 0;
+}
+.preview-title {
+  font-size: 23px;
+  line-height: 1.35;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.preview-sub {
+  margin-top: 8px;
+  color: rgba(255,255,255,0.58);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.preview-frame {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: 32px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: #111;
+  box-shadow:
+    0 22px 70px rgba(0,0,0,0.48),
+    inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+#preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.preview-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.05), transparent 58%, rgba(0,0,0,0.22)),
+    radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.18) 100%);
+}
+.preview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 12px;
+}
+.btn-secondary,
+.btn-send {
+  min-height: 58px;
+  border: 0;
+  border-radius: 18px;
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.btn-secondary {
+  color: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.11);
+  border: 1px solid rgba(255,255,255,0.14);
+}
+.btn-send {
+  color: #151515;
+  background: linear-gradient(145deg, #ffe49a 0%, var(--yellow) 55%, #c99700 100%);
+  box-shadow: 0 14px 32px rgba(255,193,7,0.28);
+}
+.btn-secondary:active,
+.btn-send:active {
+  transform: scale(0.97);
+}
+
 #done-screen {
   background: var(--dark);
   justify-content: center; align-items: center; padding: 0 36px;
@@ -291,6 +398,24 @@ html, body {
   </div>
 </div>
 
+<div class="screen hidden" id="preview-screen">
+  <div class="preview-wrap">
+    <div class="preview-head">
+      <div class="preview-logo">Hitomiru</div>
+      <div class="preview-kicker">CHECK PHOTO</div>
+    </div>
+    <div class="preview-copy">
+      <div class="preview-title">この写真で<br>チェックインしますか？</div>
+      <div class="preview-sub">ジム外観が写っていればOKです。<br>違う写真なら撮り直せます。</div>
+    </div>
+    <div class="preview-frame"><img id="preview-img" alt="撮影したジム外観"></div>
+    <div class="preview-actions">
+      <button class="btn-secondary" id="retake-btn">再撮影</button>
+      <button class="btn-send" id="send-btn">送信する</button>
+    </div>
+  </div>
+</div>
+
 <div class="screen hidden" id="done-screen">
   <div class="done-wrap">
     <div class="done-ring">
@@ -318,6 +443,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = id => document.getElementById(id);
 let stream = null, cid = null, cname = '', ctime = '', lineUserId = '';
+let pendingBlob = null;
+let previewUrl = null;
 
 function dbg(msg, isErr) {
   const el = $('debug');
@@ -384,13 +511,10 @@ $('photo-input').addEventListener('change', async (event) => {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
   try {
-    showL('送信中...');
-    await send(file);
-    hideL();
-    await doneUI();
+    showPreview(file);
   } catch (e) {
     hideL();
-    dbg('送信失敗: ' + (e.message || e), true);
+    dbg('プレビュー表示に失敗: ' + (e.message || e), true);
   } finally {
     event.target.value = '';
   }
@@ -402,12 +526,69 @@ $('shutter-btn').addEventListener('click', async () => {
   $('canvas').height = $('video').videoHeight;
   ctx.drawImage($('video'), 0, 0);
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  showL('送信中...');
   $('canvas').toBlob(async blob => {
-    try { await send(blob); hideL(); await doneUI(); }
-    catch (e) { hideL(); alert('送信失敗: ' + e.message); $('camera-screen').classList.add('hidden'); $('start-screen').classList.remove('hidden'); }
+    try { showPreview(blob); }
+    catch (e) { alert('撮影失敗: ' + e.message); $('camera-screen').classList.add('hidden'); $('start-screen').classList.remove('hidden'); }
   }, 'image/jpeg', 0.85);
 });
+
+$('retake-btn').addEventListener('click', async () => {
+  clearPreview();
+  $('preview-screen').classList.add('hidden');
+  try {
+    showL('カメラを起動中...');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+    $('video').srcObject = stream;
+    $('camera-screen').classList.remove('hidden');
+    hideL();
+  } catch (err) {
+    hideL();
+    $('photo-input').click();
+  }
+});
+
+$('send-btn').addEventListener('click', async () => {
+  if (!pendingBlob) return;
+  try {
+    $('send-btn').disabled = true;
+    $('retake-btn').disabled = true;
+    showL('送信中...');
+    await send(pendingBlob);
+    hideL();
+    clearPreview();
+    await doneUI();
+  } catch (e) {
+    hideL();
+    $('send-btn').disabled = false;
+    $('retake-btn').disabled = false;
+    alert('送信失敗: ' + (e.message || e));
+  }
+});
+
+function showPreview(blob) {
+  pendingBlob = blob;
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(blob);
+  $('preview-img').src = previewUrl;
+  $('start-screen').classList.add('hidden');
+  $('camera-screen').classList.add('hidden');
+  $('done-screen').classList.add('hidden');
+  $('preview-screen').classList.remove('hidden');
+  $('send-btn').disabled = false;
+  $('retake-btn').disabled = false;
+}
+
+function clearPreview() {
+  pendingBlob = null;
+  if (previewUrl) {
+    URL.revokeObjectURL(previewUrl);
+    previewUrl = null;
+  }
+  $('preview-img').removeAttribute('src');
+}
 
 async function send(blob) {
   const today = toDateStr(new Date());
@@ -444,7 +625,7 @@ async function send(blob) {
 }
 
 async function doneUI() {
-  $('start-screen').classList.add('hidden'); $('camera-screen').classList.add('hidden'); $('done-screen').classList.remove('hidden');
+  $('start-screen').classList.add('hidden'); $('camera-screen').classList.add('hidden'); $('preview-screen').classList.add('hidden'); $('done-screen').classList.remove('hidden');
   $('done-name').textContent = `${cname}さん、着きましたね`;
   $('done-time').textContent = ctime;
   try {
